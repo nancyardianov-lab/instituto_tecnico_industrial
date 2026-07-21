@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const { userId, action, notas } = await req.json()
-    
+
     const user = await db.user.findUnique({
       where: { id: userId },
       include: { docente: true, estudiante: true },
@@ -188,37 +188,57 @@ Administración - Instituto Técnico Industrial`
         return NextResponse.json({ error: 'Acción no válida' }, { status: 400 })
     }
 
+    // 1. Actualizar el usuario PRIMERO (operación crítica)
     const updated = await db.user.update({
       where: { id: userId },
       data: { status: newStatus, ...extraData },
     })
 
-    // Enviar correo real vía SMTP (y registrar en BD)
+    // 2. Intentar enviar correo - si falla, NO rompemos la operación.
+    //    El admin podrá ver en el panel de correos que falló y reenviar.
+    let emailResult: { ok: boolean; error?: string } | null = null
     if (emailTpl) {
-      await sendEmail({
-        to: user.email,
-        toName: user.name,
-        subject: emailTpl.subject,
-        text: emailTpl.text,
-        html: emailTpl.html,
-        plantillaTipo: emailTpl.plantillaTipo,
-      })
+      try {
+        emailResult = await sendEmail({
+          to: user.email,
+          toName: user.name,
+          subject: emailTpl.subject,
+          text: emailTpl.text,
+          html: emailTpl.html,
+          plantillaTipo: emailTpl.plantillaTipo,
+        })
+      } catch (emailErr: any) {
+        console.error('[admin/usuarios PATCH] Error enviando correo:', emailErr?.message || emailErr)
+        emailResult = { ok: false, error: emailErr?.message || 'Error enviando correo' }
+      }
     }
 
-    // Log
-    await db.auditLog.create({
-      data: {
-        userId: session.userId,
-        accion: `USUARIO_${action.toUpperCase()}`,
-        modulo: 'USUARIOS',
-        descripcion: `Usuario ${user.name} (${user.email}) - acción: ${action}`,
-        metadata: JSON.stringify({ targetUserId: userId, action, newStatus }),
-      },
-    })
+    // 3. Log de auditoría (si falla no rompemos la operación principal)
+    try {
+      await db.auditLog.create({
+        data: {
+          userId: session.userId,
+          accion: `USUARIO_${action.toUpperCase()}`,
+          modulo: 'USUARIOS',
+          descripcion: `Usuario ${user.name} (${user.email}) - acción: ${action}`,
+          metadata: JSON.stringify({ targetUserId: userId, action, newStatus, emailSent: emailResult?.ok }),
+        },
+      })
+    } catch (logErr) {
+      console.error('[admin/usuarios PATCH] Error guardando log:', logErr)
+    }
 
-    return NextResponse.json({ ok: true, user: updated })
-  } catch (e) {
-    console.error('[admin/usuarios PATCH] Error:', e)
-    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+    return NextResponse.json({
+      ok: true,
+      user: updated,
+      emailSent: emailResult?.ok ?? false,
+      emailError: emailResult?.ok === false ? emailResult.error : undefined,
+    })
+  } catch (e: any) {
+    console.error('[admin/usuarios PATCH] Error:', e?.message || e, e?.stack)
+    return NextResponse.json({
+      error: 'Error del servidor',
+      detalle: e?.message || 'Error desconocido',
+    }, { status: 500 })
   }
 }

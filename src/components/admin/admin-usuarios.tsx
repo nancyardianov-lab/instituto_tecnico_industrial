@@ -38,19 +38,41 @@ export function AdminUsuarios() {
 
   const ejecutarAccion = async () => {
     if (!modal) return
-    const res = await fetch('/api/admin/usuarios', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: modal.user.id, action: modal.action, notas }),
-    })
-    const data = await res.json()
-    if (data.ok) {
-      toast({ title: 'Acción ejecutada', description: `Usuario ${modal.user.name} actualizado.` })
-      setModal(null)
-      setNotas('')
-      cargar()
-    } else {
-      toast({ title: 'Error', description: data.error, variant: 'destructive' })
+    try {
+      const res = await fetch('/api/admin/usuarios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: modal.user.id, action: modal.action, notas }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        // El usuario se actualizó correctamente.
+        // Si el correo falló pero el usuario sí se actualizó, avisamos al admin.
+        if (data.emailSent === false) {
+          toast({
+            title: 'Usuario actualizado (correo falló)',
+            description: `Se actualizó el usuario, pero el correo no se pudo enviar: ${data.emailError || 'error desconocido'}. Puede reenviar desde el panel.`,
+            variant: 'destructive',
+          })
+        } else {
+          toast({ title: 'Acción ejecutada', description: `Usuario ${modal.user.name} actualizado.` })
+        }
+        setModal(null)
+        setNotas('')
+        cargar()
+      } else {
+        toast({
+          title: 'Error',
+          description: data.detalle || data.error || 'Error desconocido',
+          variant: 'destructive',
+        })
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Error de red',
+        description: e?.message || 'No se pudo conectar con el servidor',
+        variant: 'destructive',
+      })
     }
   }
 
