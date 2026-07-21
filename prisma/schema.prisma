@@ -1,0 +1,511 @@
+// Prisma schema - Instituto Técnico Industrial
+// Sistema Web de Gestión Académica
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// USUARIOS Y ROLES
+// ============================================================
+
+enum UserRole {
+  ADMIN
+  DOCENTE
+  ESTUDIANTE
+}
+
+enum UserStatus {
+  PENDIENTE          // Solicitud enviada, esperando revisión
+  ACEPTADO           // Preinscripción aceptada, debe presentarse presencialmente
+  ACTIVO             // Cuenta activada, puede iniciar sesión
+  BLOQUEADO          // Bloqueado por administrador
+  RECHAZADO          // Solicitud rechazada
+  DOCUMENTACION_INCOMPLETA
+}
+
+model User {
+  id                 String       @id @default(cuid())
+  email              String       @unique
+  name               String
+  password           String?
+  role               UserRole     @default(ESTUDIANTE)
+  status             UserStatus   @default(PENDIENTE)
+  foto               String?
+  telefono           String?
+  direccion          String?
+  fechaNacimiento    DateTime?
+  codigo             String?      @unique // Código institucional del estudiante/docente
+  carreraId          String?
+  carrera            Carrera?     @relation("UserCarrera", fields: [carreraId], references: [id])
+  activationToken    String?      @unique
+  activationExpires  DateTime?
+  resetToken         String?      @unique
+  resetExpires       DateTime?
+  ultimoAcceso       DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  // Relaciones
+  estudiante         Estudiante?
+  docente            Docente?
+  preinscripciones   Preinscripcion[]
+  comentarios        Comentario[]
+  notificaciones     NotificacionUsuario[]
+  favoritos          FavoritoLibro[]
+  auditLogs          AuditLog[]
+
+  @@index([role, status])
+}
+
+model Estudiante {
+  id                 String       @id @default(cuid())
+  userId             String       @unique
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  padreNombre        String?
+  padreTelefono      String?
+  padreEmail         String?
+  fechaInscripcion   DateTime?
+  anio               Int          @default(4) // 4to, 5to, 6to
+  seccion            String?
+  inscripciones      Inscripcion[]
+  calificaciones     Calificacion[]
+  horarios           HorarioEstudiante[]
+  tareasEntregadas   Entrega[]
+}
+
+model Docente {
+  id                 String       @id @default(cuid())
+  userId             String       @unique
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  especialidad       String?
+  tituloProfesional  String?
+  fechaIngreso       DateTime?
+  cursos             CursoAsignado[]
+  librosSubidos      Libro[]
+  tareasCreadas      Tarea[]
+}
+
+// ============================================================
+// CARRERAS, CURSOS, MATERIAS
+// ============================================================
+
+model Carrera {
+  id                 String       @id @default(cuid())
+  nombre             String
+  slug               String       @unique
+  descripcion        String
+  objetivo           String
+  perfilEgresado     String
+  campoLaboral       String
+  duracion           String       @default("3 años")
+  imagen             String?
+  galeria            String       // JSON con lista de imágenes
+  activa             Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  cursos             Curso[]
+  preinscripciones   Preinscripcion[]
+  estudiantes        User[]       @relation("UserCarrera")
+}
+
+model Curso {
+  id                 String       @id @default(cuid())
+  nombre             String
+  carreraId          String
+  carrera            Carrera      @relation(fields: [carreraId], references: [id], onDelete: Cascade)
+  anio               Int          // 4, 5, 6
+  descripcion        String?
+  pensum             String       // JSON con materias y periodos
+  activo             Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+
+  asignaciones       CursoAsignado[]
+  horarios           Horario[]
+  tareas             Tarea[]
+  inscripciones      Inscripcion[]
+  calificaciones     Calificacion[]
+}
+
+model CursoAsignado {
+  id                 String       @id @default(cuid())
+  cursoId            String
+  docenteId          String
+  curso              Curso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  docente            Docente      @relation(fields: [docenteId], references: [id], onDelete: Cascade)
+  anio               Int
+  asignadoEn         DateTime     @default(now())
+
+  @@unique([cursoId, docenteId, anio])
+}
+
+// ============================================================
+// PREINSCRIPCIONES E INSCRIPCIONES
+// ============================================================
+
+enum PreinscripcionStatus {
+  PENDIENTE
+  ACEPTADA
+  DOCUMENTACION_INCOMPLETA
+  RECHAZADA
+  INSCRIPCION_CONFIRMADA
+}
+
+model Preinscripcion {
+  id                 String       @id @default(cuid())
+  // Datos del padre/encargado
+  padreNombre        String
+  padreTelefono      String
+  padreEmail         String
+  // Datos del estudiante
+  estudianteNombre   String
+  estudianteCodigo   String
+  estudianteTelefono String
+  estudianteEmail    String
+  // Carrera solicitada
+  carreraId          String
+  carrera            Carrera      @relation(fields: [carreraId], references: [id])
+  carreraNombre      String
+  // Estado del proceso
+  status             PreinscripcionStatus @default(PENDIENTE)
+  // Cuando se aprueba, se vincula con un User
+  userId             String?
+  user               User?        @relation(fields: [userId], references: [id])
+  // Datos de revisión
+  revisadoPor        String?
+  fechaRevision      DateTime?
+  notasRevision      String?
+  // Datos de inscripción presencial
+  fechaInscripcionPresencial DateTime?
+  confirmadoPor      String?
+  fechaConfirmacion  DateTime?
+  // Metadata
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([status])
+  @@index([carreraId])
+}
+
+model Inscripcion {
+  id                 String       @id @default(cuid())
+  estudianteId       String
+  estudiante         Estudiante   @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  cursoId            String
+  curso              Curso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  anio               Int
+  fechaInscripcion   DateTime     @default(now())
+
+  @@unique([estudianteId, cursoId, anio])
+}
+
+// ============================================================
+// HORARIOS
+// ============================================================
+
+model Horario {
+  id                 String       @id @default(cuid())
+  cursoId            String
+  curso              Curso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  dia                String       // LUNES, MARTES, MIERCOLES, JUEVES, VIERNES
+  horaInicio         String       // "14:00"
+  horaFin            String       // "15:30"
+  aula               String?
+  createdAt          DateTime     @default(now())
+
+  estudiantes        HorarioEstudiante[]
+}
+
+model HorarioEstudiante {
+  id                 String       @id @default(cuid())
+  horarioId          String
+  horario            Horario      @relation(fields: [horarioId], references: [id], onDelete: Cascade)
+  estudianteId       String
+  estudiante         Estudiante   @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+
+  @@unique([horarioId, estudianteId])
+}
+
+// ============================================================
+// TAREAS Y ENTREGAS
+// ============================================================
+
+model Tarea {
+  id                 String       @id @default(cuid())
+  titulo             String
+  descripcion        String
+  cursoId            String
+  curso              Curso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  docenteId          String
+  docente            Docente      @relation(fields: [docenteId], references: [id], onDelete: Cascade)
+  fechaAsignacion    DateTime     @default(now())
+  fechaEntrega       DateTime
+  punteoMaximo       Float        @default(100)
+  activa             Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  entregas           Entrega[]
+}
+
+model Entrega {
+  id                 String       @id @default(cuid())
+  tareaId            String
+  tarea              Tarea        @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  estudianteId       String
+  estudiante         Estudiante   @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  archivoUrl         String?
+  comentario         String?
+  comentarioDocente  String?
+  calificacion       Float?
+  fechaEntrega       DateTime     @default(now())
+  calificadaEn       DateTime?
+
+  @@unique([tareaId, estudianteId])
+}
+
+// ============================================================
+// CALIFICACIONES
+// ============================================================
+
+model Calificacion {
+  id                 String       @id @default(cuid())
+  estudianteId       String
+  estudiante         Estudiante   @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  cursoId            String
+  curso              Curso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  unidad             Int          // 1, 2, 3, 4
+  nota               Float
+  observaciones      String?
+  publicada          Boolean      @default(false)
+  fechaRegistro      DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@unique([estudianteId, cursoId, unidad])
+}
+
+// ============================================================
+// BIBLIOTECA
+// ============================================================
+
+enum LibroCategoria {
+  COMPUTACION
+  ELECTRICIDAD
+  COSTURA
+  DIBUJO
+  MECANICA
+  GENERAL
+  ACADEMICA
+}
+
+model Libro {
+  id                 String       @id @default(cuid())
+  titulo             String
+  autor              String
+  descripcion        String?
+  categoria          LibroCategoria @default(GENERAL)
+  archivoUrl         String
+  portada            String?
+  paginas            Int?
+  idioma             String       @default("Español")
+  publicadoPor       String
+  docenteId          String?
+  docente            Docente?     @relation(fields: [docenteId], references: [id])
+  activo             Boolean      @default(true)
+  vistas             Int          @default(0)
+  descargas          Int          @default(0)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  comentarios        Comentario[]
+  favoritos          FavoritoLibro[]
+}
+
+model Comentario {
+  id                 String       @id @default(cuid())
+  libroId            String
+  libro              Libro        @relation(fields: [libroId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  texto              String
+  calificacion       Int          @default(5) // 1-5 estrellas
+  reportado          Boolean      @default(false)
+  motivoReporte      String?
+  padreId            String?      // Para respuestas
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model FavoritoLibro {
+  id                 String       @id @default(cuid())
+  libroId            String
+  libro              Libro        @relation(fields: [libroId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt          DateTime     @default(now())
+
+  @@unique([libroId, userId])
+}
+
+// ============================================================
+// CONTENIDO INSTITUCIONAL
+// ============================================================
+
+model Noticia {
+  id                 String       @id @default(cuid())
+  titulo             String
+  resumen            String
+  contenido          String
+  imagen             String?
+  autor              String       @default("Administración")
+  publicada          Boolean      @default(true)
+  destacada          Boolean      @default(false)
+  fechaPublicacion   DateTime     @default(now())
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model Evento {
+  id                 String       @id @default(cuid())
+  titulo             String
+  descripcion        String
+  fecha              DateTime
+  hora               String
+  lugar              String
+  imagen             String?
+  createdAt          DateTime     @default(now())
+}
+
+model FotoGaleria {
+  id                 String       @id @default(cuid())
+  titulo             String
+  descripcion        String?
+  url                String
+  categoria          String       @default("instalaciones")
+  createdAt          DateTime     @default(now())
+}
+
+model Faq {
+  id                 String       @id @default(cuid())
+  pregunta           String
+  respuesta          String
+  orden              Int          @default(0)
+  activo             Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+}
+
+model ComentarioVisitante {
+  id                 String       @id @default(cuid())
+  nombre             String
+  email              String
+  comentario         String
+  calificacion       Int          @default(5)
+  aprobado           Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+}
+
+// ============================================================
+// NOTIFICACIONES
+// ============================================================
+
+enum NotificacionTipo {
+  GENERAL
+  TAREA
+  NOTA
+  INSCRIPCION
+  SISTEMA
+}
+
+model Notificacion {
+  id                 String       @id @default(cuid())
+  titulo             String
+  mensaje           String
+  tipo               NotificacionTipo @default(GENERAL)
+  publicadoPor       String?
+  // Destinatarios: si es global, se marca como global=true
+  esGlobal          Boolean       @default(false)
+  // Para destinatarios específicos
+  destinatarios     NotificacionUsuario[]
+  fechaPublicacion  DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+}
+
+model NotificacionUsuario {
+  id                 String       @id @default(cuid())
+  notificacionId     String
+  notificacion       Notificacion @relation(fields: [notificacionId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leida              Boolean      @default(false)
+  fechaLectura       DateTime?
+  createdAt          DateTime     @default(now())
+
+  @@unique([notificacionId, userId])
+}
+
+// ============================================================
+// CORREOS Y PLANTILLAS
+// ============================================================
+
+enum PlantillaTipo {
+  PREINSCRIPCION_RECIBIDA
+  PREINSCRIPCION_ACEPTADA
+  PREINSCRIPCION_RECHAZADA
+  DOCUMENTACION_INCOMPLETA
+  INSCRIPCION_CONFIRMADA
+  ACTIVACION_CUENTA
+  RESTABLECER_CONTRASENA
+  TAREA_NUEVA
+  NOTA_PUBLICADA
+  DOCENTE_APROBADO
+  DOCENTE_RECHAZADO
+}
+
+model PlantillaCorreo {
+  id                 String       @id @default(cuid())
+  tipo               PlantillaTipo @unique
+  asunto             String
+  contenido          String
+  logoUrl            String?
+  firma              String?
+  documentosSolicitados String?    // JSON con lista
+  informacionContacto String?
+  fechaLimite        String?
+  activa             Boolean      @default(true)
+  updatedAt          DateTime     @updatedAt
+}
+
+model CorreoEnviado {
+  id                 String       @id @default(cuid())
+  destinatario       String
+  destinatarioNombre String?
+  asunto             String
+  contenido          String
+  plantillaTipo      PlantillaTipo?
+  enviadoAt          DateTime     @default(now())
+}
+
+// ============================================================
+// AUDITORÍA
+// ============================================================
+
+model AuditLog {
+  id                 String       @id @default(cuid())
+  userId             String?
+  user               User?        @relation(fields: [userId], references: [id])
+  accion             String
+  modulo             String
+  descripcion        String
+  ip                 String?
+  metadata           String?      // JSON
+  createdAt          DateTime     @default(now())
+
+  @@index([userId])
+  @@index([modulo, createdAt])
+}
