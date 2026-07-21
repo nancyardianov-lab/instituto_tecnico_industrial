@@ -2,81 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { LibroCategoria, UserRole } from '@prisma/client'
-import { randomBytes } from 'crypto'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
-
-const UPLOAD_ARCHIVOS = path.join(process.cwd(), 'public', 'uploads', 'biblioteca', 'archivos')
-const UPLOAD_PORTADAS = path.join(process.cwd(), 'public', 'uploads', 'biblioteca', 'portadas')
-
-// Extensiones y tipos MIME permitidos para archivos (libros / documentos)
-const ARCHIVOS_PERMITIDOS: Record<string, string> = {
-  'application/pdf': 'pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-  'application/msword': 'doc',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-  'application/vnd.ms-excel': 'xls',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
-  'application/vnd.ms-powerpoint': 'ppt',
-  'text/plain': 'txt',
-  'application/epub+zip': 'epub',
-  'application/octet-stream': 'bin', // se valida por extensión abajo
-}
-
-const PORTADAS_PERMITIDAS: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/jpg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-}
-
-const MAX_ARCHIVO = 50 * 1024 * 1024 // 50 MB
-const MAX_PORTADA = 5 * 1024 * 1024  // 5 MB
-
-function sanitizeNombre(nombre: string): string {
-  // Quita espacios y caracteres raros, deja el nombre seguro
-  return nombre
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]/g, '_')
-    .slice(0, 80)
-}
-
-async function guardarArchivo(
-  file: File,
-  destinoDir: string,
-  permitidos: Record<string, string>,
-  maxSize: number,
-): Promise<{ ok: true; rutaPublica: string } | { ok: false; error: string }> {
-  if (!file) return { ok: false, error: 'No se recibió archivo' }
-  if (file.size > maxSize) {
-    return { ok: false, error: `El archivo "${file.name}" supera el tamaño máximo permitido` }
-  }
-
-  // Validar tipo MIME. Algunos navegadores mandan octet-stream para PDFs
-  // descargados, así que también validamos por extensión.
-  let ext = permitidos[file.type]
-  if (!ext) {
-    const extOriginal = file.name.split('.').pop()?.toLowerCase() || ''
-    const extInversa = Object.values(permitidos).find((e) => e === extOriginal)
-    if (extInversa) ext = extInversa
-  }
-  if (!ext) {
-    return { ok: false, error: `Tipo de archivo no permitido: ${file.type || file.name}` }
-  }
-
-  await mkdir(destinoDir, { recursive: true })
-  const prefijo = randomBytes(8).toString('hex')
-  const nombreSeguro = `${prefijo}_${sanitizeNombre(file.name).replace(/\.[^.]+$/, '')}.${ext}`
-  const rutaCompleta = path.join(destinoDir, nombreSeguro)
-  const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(rutaCompleta, buffer)
-
-  // Devolver ruta pública relativa
-  const rutaPublica = `/uploads/biblioteca/${destinoDir.includes('portadas') ? 'portadas' : 'archivos'}/${nombreSeguro}`
-  return { ok: true, rutaPublica }
-}
+import {
+  subirArchivo,
+  ARCHIVOS_PERMITIDOS,
+  PORTADAS_PERMITIDAS,
+  MAX_ARCHIVO,
+  MAX_PORTADA,
+} from '@/lib/storage'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -153,15 +85,15 @@ export async function POST(req: NextRequest) {
       if (!portadaFile && portadaUrlManual) portada = portadaUrlManual
 
       if (archivoFile && archivoFile.size > 0) {
-        const r = await guardarArchivo(archivoFile, UPLOAD_ARCHIVOS, ARCHIVOS_PERMITIDOS, MAX_ARCHIVO)
+        const r = await subirArchivo(archivoFile, 'archivos', ARCHIVOS_PERMITIDOS, MAX_ARCHIVO)
         if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 })
-        archivoUrl = r.rutaPublica
+        archivoUrl = r.url
       }
 
       if (portadaFile && portadaFile.size > 0) {
-        const r = await guardarArchivo(portadaFile, UPLOAD_PORTADAS, PORTADAS_PERMITIDAS, MAX_PORTADA)
+        const r = await subirArchivo(portadaFile, 'portadas', PORTADAS_PERMITIDAS, MAX_PORTADA)
         if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 })
-        portada = r.rutaPublica
+        portada = r.url
       }
     } else {
       // ====== JSON legacy (compatibilidad hacia atrás) ======

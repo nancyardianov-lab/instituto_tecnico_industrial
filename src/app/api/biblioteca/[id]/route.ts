@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { UserRole } from '@prisma/client'
-import { unlink } from 'fs/promises'
-import path from 'path'
+import { eliminarArchivo } from '@/lib/storage'
 
 export async function GET(
   _req: NextRequest,
@@ -38,15 +37,9 @@ export async function DELETE(
   const libro = await db.libro.findUnique({ where: { id } })
   if (!libro) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-  // Borrar archivos físicos si están en /uploads/biblioteca/...
-  const borrarSiEsLocal = async (url?: string | null) => {
-    if (!url) return
-    if (!url.startsWith('/uploads/biblioteca/')) return
-    const ruta = path.join(process.cwd(), 'public', url)
-    try { await unlink(ruta) } catch {}
-  }
-  await borrarSiEsLocal(libro.archivoUrl)
-  await borrarSiEsLocal(libro.portada)
+  // Borrar archivos físicos/Blob usando el helper de storage
+  await eliminarArchivo(libro.archivoUrl)
+  await eliminarArchivo(libro.portada)
 
   await db.libro.delete({ where: { id } })
   return NextResponse.json({ ok: true })
