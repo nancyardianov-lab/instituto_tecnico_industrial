@@ -186,16 +186,16 @@ function EstudianteDashboard({ data, loading, notifs, navigate }: any) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Horario del día */}
+        {/* Horario del día / próximas clases */}
         <Card className="iti-card">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" /> Horario de Hoy
+              <Calendar className="h-5 w-5 text-primary" /> {data.horarioHoyLabel === 'Hoy' ? 'Clases de Hoy' : `Próximas Clases (${data.horarioHoyLabel})`}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {data.horarioHoy.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No hay clases hoy.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No tienes clases programadas esta semana.</p>
             ) : (
               <div className="space-y-2">
                 {data.horarioHoy.map((h: any) => (
@@ -205,7 +205,11 @@ function EstudianteDashboard({ data, loading, notifs, navigate }: any) {
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-medium">{h.curso}</div>
-                      <div className="text-xs text-muted-foreground">Aula: {h.aula}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {h.docente && <span>{h.docente}</span>}
+                        {h.docente && h.aula && <span> · </span>}
+                        {h.aula && <span>Aula: {h.aula}</span>}
+                      </div>
                     </div>
                     <Clock className="h-4 w-4 text-muted-foreground" />
                   </div>
@@ -222,7 +226,7 @@ function EstudianteDashboard({ data, loading, notifs, navigate }: any) {
         <Card className="iti-card">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-primary" /> Próximas Tareas
+              <ClipboardList className="h-5 w-5 text-primary" /> Tareas Pendientes
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -231,12 +235,12 @@ function EstudianteDashboard({ data, loading, notifs, navigate }: any) {
             ) : (
               <div className="space-y-2">
                 {data.tareasPendientes.slice(0, 5).map((t: any) => (
-                  <div key={t.id} className="p-2 rounded-md bg-muted/30">
+                  <div key={t.id} className={`p-2 rounded-md bg-muted/30 ${t.vencida ? 'border-l-2 border-red-400' : ''}`}>
                     <div className="text-sm font-medium line-clamp-1">{t.titulo}</div>
                     <div className="flex items-center justify-between mt-1">
                       <div className="text-xs text-muted-foreground">{t.curso.nombre}</div>
-                      <Badge variant="outline" className="text-[10px]">
-                        {new Date(t.fechaEntrega).toLocaleDateString('es-GT')}
+                      <Badge variant={t.vencida ? 'destructive' : 'outline'} className="text-[10px]">
+                        {t.vencida ? 'Vencida' : ''} {new Date(t.fechaEntrega).toLocaleDateString('es-GT')}
                       </Badge>
                     </div>
                   </div>

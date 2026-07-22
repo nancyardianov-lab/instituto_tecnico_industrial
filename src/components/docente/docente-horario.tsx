@@ -89,6 +89,7 @@ export function DocenteHorario() {
         showCarrera={true}
         showDocente={false}
         showAula={true}
+        showGrado={true}
       />
 
       {/* Materias asignadas */}

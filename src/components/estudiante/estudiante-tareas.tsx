@@ -1,14 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect, useRef } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { ClipboardList, Clock, CheckCircle2, AlertCircle, Upload, Send, FileText } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ClipboardList, Clock, CheckCircle2, AlertCircle, Upload, Send, FileText, ImageIcon, Video, Paperclip, X } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 export function EstudianteTareas() {
@@ -16,7 +14,10 @@ export function EstudianteTareas() {
   const [tareas, setTareas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [tareaSel, setTareaSel] = useState<any>(null)
-  const [entrega, setEntrega] = useState({ comentario: '', archivoUrl: '' })
+  const [entrega, setEntrega] = useState({ comentario: '' })
+  const [archivo, setArchivo] = useState<File | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const cargar = () => {
     fetch('/api/estudiante/tareas').then(r => r.json()).then(d => {
@@ -28,24 +29,43 @@ export function EstudianteTareas() {
   useEffect(() => { cargar() }, [])
 
   const entregar = async () => {
-    if (!entrega.comentario && !entrega.archivoUrl) {
-      toast({ title: 'Error', description: 'Agregue un comentario o archivo', variant: 'destructive' })
+    if (!entrega.comentario && !archivo) {
+      toast({ title: 'Error', description: 'Agregue un comentario o suba un archivo', variant: 'destructive' })
       return
     }
-    const res = await fetch(`/api/estudiante/tareas/${tareaSel.id}/entregar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entrega),
-    })
-    const data = await res.json()
-    if (data.ok) {
-      toast({ title: 'Tarea entregada', description: 'El docente revisará su entrega.' })
-      setTareaSel(null)
-      setEntrega({ comentario: '', archivoUrl: '' })
-      cargar()
-    } else {
-      toast({ title: 'Error', description: data.error, variant: 'destructive' })
+    setEnviando(true)
+    try {
+      const fd = new FormData()
+      fd.append('comentario', entrega.comentario)
+      if (archivo) fd.append('archivo', archivo)
+
+      const res = await fetch(`/api/estudiante/tareas/${tareaSel.id}/entregar`, {
+        method: 'POST',
+        body: fd,
+      })
+      const data = await res.json()
+      if (data.ok) {
+        toast({ title: 'Tarea entregada', description: 'El docente revisará su entrega.' })
+        setTareaSel(null)
+        setEntrega({ comentario: '' })
+        setArchivo(null)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        cargar()
+      } else {
+        toast({ title: 'Error', description: data.error, variant: 'destructive' })
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e?.message || 'Error inesperado', variant: 'destructive' })
+    } finally {
+      setEnviando(false)
     }
+  }
+
+  const cerrarModal = () => {
+    setTareaSel(null)
+    setEntrega({ comentario: '' })
+    setArchivo(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const pendientes = tareas.filter(t => !t.entregada)
@@ -91,7 +111,14 @@ export function EstudianteTareas() {
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{t.descripcion}</p>
                     <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-[10px]">Punteo: {t.punteoMaximo}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px]">Punteo: {t.punteoMaximo}</Badge>
+                        {t.archivoUrl && (
+                          <Badge variant="outline" className="text-[10px] flex items-center gap-1 text-primary">
+                            <Paperclip className="h-3 w-3" /> Con adjunto
+                          </Badge>
+                        )}
+                      </div>
                       <Button size="sm" onClick={() => setTareaSel(t)}>
                         <Upload className="h-3 w-3 mr-1" /> Entregar
                       </Button>
@@ -142,8 +169,8 @@ export function EstudianteTareas() {
       </div>
 
       {/* Modal de entrega */}
-      <Dialog open={!!tareaSel} onOpenChange={(o) => !o && setTareaSel(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <Dialog open={!!tareaSel} onOpenChange={(o) => !o && cerrarModal()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {tareaSel && (
             <>
               <DialogHeader>
@@ -170,6 +197,15 @@ export function EstudianteTareas() {
                   </div>
                 </div>
 
+                {/* Archivo de apoyo del docente */}
+                {tareaSel.archivoUrl && (
+                  <ArchivoAdjuntoCard
+                    url={tareaSel.archivoUrl}
+                    nombre={tareaSel.archivoNombre || 'archivo'}
+                    tipo={tareaSel.archivoTipo}
+                  />
+                )}
+
                 {tareaSel.entregada && tareaSel.entrega && (
                   <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-md p-3">
                     <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400 mb-2">
@@ -177,6 +213,15 @@ export function EstudianteTareas() {
                     </div>
                     {tareaSel.entrega.comentario && (
                       <p className="text-xs text-muted-foreground">Tu comentario: {tareaSel.entrega.comentario}</p>
+                    )}
+                    {tareaSel.entrega.archivoUrl && (
+                      <div className="mt-2">
+                        <ArchivoAdjuntoCard
+                          url={tareaSel.entrega.archivoUrl}
+                          nombre={tareaSel.entrega.archivoNombre || 'mi-entrega'}
+                          tipo={tareaSel.entrega.archivoTipo}
+                        />
+                      </div>
                     )}
                     {tareaSel.entrega.calificacion !== null && tareaSel.entrega.calificacion !== undefined && (
                       <div className="mt-2">
@@ -193,27 +238,71 @@ export function EstudianteTareas() {
                 {!tareaSel.entregada && (
                   <div className="space-y-3 border-t pt-3">
                     <h4 className="font-medium text-sm">Realizar entrega</h4>
+
+                    {/* Subida de archivo desde el dispositivo */}
                     <div>
-                      <Label htmlFor="archivo">Archivo (URL)</Label>
-                      <Input
-                        id="archivo"
-                        value={entrega.archivoUrl}
-                        onChange={(e) => setEntrega({ ...entrega, archivoUrl: e.target.value })}
-                        placeholder="https://..."
+                      <div className="font-medium text-xs mb-1">Subir archivo (foto, video o documento)</div>
+                      <p className="text-xs text-muted-foreground mb-2">Máximo 5MB.</p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                        onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+                        className="hidden"
                       />
+                      {!archivo ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full border-dashed"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Seleccionar foto, video o documento
+                        </Button>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2 p-3 rounded-md border bg-muted/30">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {archivo.type.startsWith('image/') ? (
+                              <ImageIcon className="h-5 w-5 text-primary flex-shrink-0" />
+                            ) : archivo.type.startsWith('video/') ? (
+                              <Video className="h-5 w-5 text-primary flex-shrink-0" />
+                            ) : (
+                              <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium truncate">{archivo.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {(archivo.size / 1024 / 1024).toFixed(2)} MB
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setArchivo(null)
+                              if (fileInputRef.current) fileInputRef.current.value = ''
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
+
                     <div>
-                      <Label htmlFor="comentario">Comentario</Label>
+                      <div className="font-medium text-xs mb-1">Comentario (opcional)</div>
                       <Textarea
-                        id="comentario"
                         rows={3}
                         value={entrega.comentario}
                         onChange={(e) => setEntrega({ ...entrega, comentario: e.target.value })}
                         placeholder="Escribe un comentario para tu entrega..."
                       />
                     </div>
-                    <Button onClick={entregar} className="w-full bg-primary hover:bg-primary/90">
-                      <Send className="h-4 w-4 mr-2" /> Entregar tarea
+                    <Button onClick={entregar} disabled={enviando} className="w-full bg-primary hover:bg-primary/90">
+                      {enviando ? 'Entregando...' : <><Send className="h-4 w-4 mr-2" /> Entregar tarea</>}
                     </Button>
                   </div>
                 )}
@@ -222,6 +311,50 @@ export function EstudianteTareas() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// Componente reutilizable para mostrar archivo adjunto
+function ArchivoAdjuntoCard({ url, nombre, tipo }: { url: string; nombre: string; tipo?: string | null }) {
+  const isImage = tipo === 'imagen' || (!tipo && /\.(jpg|jpeg|png|webp|gif)$/i.test(url))
+  const isVideo = tipo === 'video' || (!tipo && /\.(mp4|webm|mov|avi)$/i.test(url))
+
+  return (
+    <div className="border rounded-md p-3 bg-muted/20">
+      <div className="text-xs font-medium text-primary mb-2 flex items-center gap-1">
+        <Paperclip className="h-3 w-3" /> Archivo adjunto:
+      </div>
+      {isImage && (
+        <img src={url} alt={nombre} className="max-h-64 rounded-md mx-auto" />
+      )}
+      {isVideo && (
+        <video controls className="w-full max-h-64 rounded-md">
+          <source src={url} />
+          Tu navegador no soporta el reproductor de video.
+        </video>
+      )}
+      {!isImage && !isVideo && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 p-2 rounded border bg-background hover:bg-muted/40"
+        >
+          <FileText className="h-5 w-5 text-primary" />
+          <span className="text-sm underline">{nombre}</span>
+        </a>
+      )}
+      {(isImage || isVideo) && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-primary hover:underline block mt-1 text-center"
+        >
+          Ver/Descargar: {nombre}
+        </a>
+      )}
     </div>
   )
 }

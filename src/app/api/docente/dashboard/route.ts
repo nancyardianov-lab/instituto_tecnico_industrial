@@ -19,6 +19,7 @@ export async function GET() {
               curso: {
                 include: {
                   carrera: { select: { nombre: true } },
+                  horarios: true,
                   _count: { select: { inscripciones: true, tareas: true } },
                 },
               },
@@ -51,20 +52,66 @@ export async function GET() {
     where: { docenteId: user.docente.id },
   })
 
-  // Clases del día
-  const dias = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO']
-  const diaHoy = dias[new Date().getDay()]
-  
-  const horariosHoy = await db.horario.findMany({
-    where: {
-      cursoId: { in: cursoIds },
-      dia: diaHoy,
-    },
-    include: {
-      curso: { select: { nombre: true } },
-    },
-    orderBy: { horaInicio: 'asc' },
-  })
+  // Reunir todos los horarios de los cursos del docente
+  const DIAS = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO']
+  const ahora = new Date()
+  const diaHoy = DIAS[ahora.getDay()]
+
+  type HorarioConInfo = {
+    id: string
+    curso: string
+    carrera: string
+    anio: number
+    dia: string
+    horaInicio: string
+    horaFin: string
+    aula: string | null
+  }
+  const todosLosHorarios: HorarioConInfo[] = []
+  for (const ca of user.docente.cursos) {
+    for (const h of ca.curso.horarios) {
+      todosLosHorarios.push({
+        id: h.id,
+        curso: ca.curso.nombre,
+        carrera: ca.curso.carrera?.nombre || 'Sin carrera',
+        anio: ca.anio,
+        dia: h.dia,
+        horaInicio: h.horaInicio,
+        horaFin: h.horaFin,
+        aula: h.aula,
+      })
+    }
+  }
+
+  // Clases de hoy
+  const horarioHoy = todosLosHorarios
+    .filter(h => h.dia === diaHoy)
+    .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+
+  // Próximas clases si hoy no hay
+  let proximasClases: HorarioConInfo[] = horarioHoy
+  let horarioHoyLabel = 'Hoy'
+  if (horarioHoy.length === 0) {
+    const DIAS_LABEL: Record<string, string> = {
+      LUNES: 'Lunes', MARTES: 'Martes', MIERCOLES: 'Miércoles',
+      JUEVES: 'Jueves', VIERNES: 'Viernes',
+    }
+    const DIAS_HABILES = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES']
+    for (let i = 1; i <= 7; i++) {
+      const proxIdx = (ahora.getDay() + i) % 7
+      const proxDia = DIAS[proxIdx]
+      if (DIAS_HABILES.includes(proxDia)) {
+        const clases = todosLosHorarios
+          .filter(h => h.dia === proxDia)
+          .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+        if (clases.length > 0) {
+          proximasClases = clases
+          horarioHoyLabel = DIAS_LABEL[proxDia]
+          break
+        }
+      }
+    }
+  }
 
   // Últimas entregas
   const ultimasEntregas = await db.entrega.findMany({
@@ -102,7 +149,8 @@ export async function GET() {
     totalEstudiantes,
     totalTareas,
     totalCursos: user.docente.cursos.length,
-    horarioHoy: horariosHoy,
+    horarioHoy: proximasClases,
+    horarioHoyLabel,
     ultimasEntregas,
   })
 }

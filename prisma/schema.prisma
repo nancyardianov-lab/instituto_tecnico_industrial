@@ -248,6 +248,11 @@ model Tarea {
   fechaEntrega       DateTime
   punteoMaximo       Float        @default(100)
   activa             Boolean      @default(true)
+  // Archivo de apoyo que el docente puede subir desde su dispositivo
+  // (foto, video, documento PDF/Word/Excel/etc.)
+  archivoUrl         String?
+  archivoNombre      String?
+  archivoTipo        String?      // 'imagen' | 'video' | 'documento'
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
@@ -261,6 +266,8 @@ model Entrega {
   estudianteId       String
   estudiante         Estudiante   @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
   archivoUrl         String?
+  archivoNombre      String?
+  archivoTipo        String?      // 'imagen' | 'video' | 'documento'
   comentario         String?
   comentarioDocente  String?
   calificacion       Float?

@@ -162,29 +162,34 @@ function DocenteDashboard({ data, loading, navigate }: any) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Clases del día */}
+        {/* Clases del día / próximas clases */}
         <Card className="iti-card">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" /> Clases de Hoy
+              <Calendar className="h-5 w-5 text-primary" /> {data.horarioHoyLabel === 'Hoy' ? 'Clases de Hoy' : `Próximas Clases (${data.horarioHoyLabel})`}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {data.horarioHoy.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No hay clases hoy.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No tiene clases programadas esta semana.</p>
             ) : (
               <div className="space-y-2">
                 {data.horarioHoy.map((h: any) => (
                   <div key={h.id} className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
                     <div className="text-xs font-medium text-primary w-20">{h.horaInicio} - {h.horaFin}</div>
                     <div className="flex-1">
-                      <div className="text-sm font-medium">{h.curso.nombre}</div>
-                      <div className="text-xs text-muted-foreground">Aula: {h.aula}</div>
+                      <div className="text-sm font-medium">{h.curso}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {h.carrera}{h.anio ? ` · ${h.anio}° año` : ''}{h.aula ? ` · Aula: ${h.aula}` : ''}
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+            <Button variant="ghost" size="sm" className="w-full mt-3" onClick={() => navigate('horario')}>
+              Ver horario completo <ChevronRight className="h-4 w-4" />
+            </Button>
           </CardContent>
         </Card>
 

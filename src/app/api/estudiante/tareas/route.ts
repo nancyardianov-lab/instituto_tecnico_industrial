@@ -42,6 +42,9 @@ export async function GET() {
     fechaAsignacion: t.fechaAsignacion,
     fechaEntrega: t.fechaEntrega,
     punteoMaximo: t.punteoMaximo,
+    archivoUrl: t.archivoUrl,
+    archivoNombre: t.archivoNombre,
+    archivoTipo: t.archivoTipo,
     entregada: t.entregas.length > 0,
     entrega: t.entregas[0] || null,
   }))

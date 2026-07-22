@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Clock, MapPin, User, BookOpen, Users } from 'lucide-react'
+import { Clock, MapPin, User, BookOpen, Users, GraduationCap } from 'lucide-react'
 
 export interface TimetableEntry {
   id: string
@@ -66,6 +66,7 @@ interface TimetableProps {
   showCarrera?: boolean
   showDocente?: boolean
   showAula?: boolean
+  showGrado?: boolean
   // Para mostrar encabezado del horario (carrera+grado del estudiante)
   headerInfo?: string
 }
@@ -77,6 +78,7 @@ export function Timetable({
   showCarrera = false,
   showDocente = true,
   showAula = true,
+  showGrado = false,
   headerInfo,
 }: TimetableProps) {
   if (!entries || entries.length === 0) {
@@ -201,7 +203,7 @@ export function Timetable({
                           key={entry.id}
                           className={`absolute left-0.5 right-0.5 rounded-md border-l-4 ${color.bg} ${color.border} ${color.text} p-1 overflow-hidden`}
                           style={{ top: `${top}px`, height: `${height - 2}px`, minHeight: '24px' }}
-                          title={`${entry.curso} — ${entry.horaInicio} a ${entry.horaFin}`}
+                          title={`${entry.curso}${entry.anio ? ` — ${entry.anio}° año` : ''}${entry.docente ? ` — ${entry.docente}` : ''} — ${entry.horaInicio} a ${entry.horaFin}`}
                         >
                           <div className="text-[10px] sm:text-xs font-semibold leading-tight line-clamp-2">
                             {entry.curso}
@@ -209,6 +211,11 @@ export function Timetable({
                           {height >= 50 && showDocente && entry.docente && (
                             <div className="text-[9px] sm:text-[10px] flex items-center gap-0.5 mt-0.5 opacity-80 line-clamp-1">
                               <User className="h-2.5 w-2.5 flex-shrink-0" /> {entry.docente}
+                            </div>
+                          )}
+                          {height >= 50 && showGrado && entry.anio && (
+                            <div className="text-[9px] sm:text-[10px] flex items-center gap-0.5 mt-0.5 opacity-80 line-clamp-1">
+                              <GraduationCap className="h-2.5 w-2.5 flex-shrink-0" /> {entry.anio}° año
                             </div>
                           )}
                           {height >= 70 && showAula && entry.aula && (

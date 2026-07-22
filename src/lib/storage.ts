@@ -10,9 +10,10 @@ type UploadResult = { ok: true; url: string } | { ok: false; error: string }
 
 const UPLOAD_ARCHIVOS_DIR = path.join(process.cwd(), 'public', 'uploads', 'biblioteca', 'archivos')
 const UPLOAD_PORTADAS_DIR = path.join(process.cwd(), 'public', 'uploads', 'biblioteca', 'portadas')
+const UPLOAD_TAREAS_DIR = path.join(process.cwd(), 'public', 'uploads', 'tareas')
 
 // Detecta si estamos en Netlify con Blobs disponible
-async function getNetlifyBlobStore(tipo: 'archivos' | 'portadas') {
+async function getNetlifyBlobStore(tipo: 'archivos' | 'portadas' | 'tareas') {
   try {
     const { getStore } = await import('@netlify/blobs')
     const store = getStore(`biblioteca-${tipo}`)
@@ -54,13 +55,13 @@ function getExtension(file: File, permitidos: Record<string, string>): string | 
 /**
  * Sube un archivo al almacenamiento configurado.
  * @param file Archivo a subir
- * @param tipo 'archivos' para libros/documentos, 'portadas' para imágenes
+ * @param tipo 'archivos' para libros/documentos, 'portadas' para imágenes, 'tareas' para adjuntos de tareas y entregas
  * @param permitidos Mapa MIME -> extensión permitida
  * @param maxSize Tamaño máximo en bytes
  */
 export async function subirArchivo(
   file: File,
-  tipo: 'archivos' | 'portadas',
+  tipo: 'archivos' | 'portadas' | 'tareas',
   permitidos: Record<string, string>,
   maxSize: number,
 ): Promise<UploadResult> {
@@ -121,12 +122,18 @@ export async function subirArchivo(
 
   // ====== Desarrollo: sistema de archivos local ======
   try {
-    const destinoDir = tipo === 'portadas' ? UPLOAD_PORTADAS_DIR : UPLOAD_ARCHIVOS_DIR
+    let destinoDir: string
+    if (tipo === 'portadas') destinoDir = UPLOAD_PORTADAS_DIR
+    else if (tipo === 'tareas') destinoDir = UPLOAD_TAREAS_DIR
+    else destinoDir = UPLOAD_ARCHIVOS_DIR
     await mkdir(destinoDir, { recursive: true })
     const rutaCompleta = path.join(destinoDir, nombreSeguro)
     const buffer = Buffer.from(await file.arrayBuffer())
     await writeFile(rutaCompleta, buffer)
-    const rutaPublica = `/uploads/biblioteca/${tipo}/${nombreSeguro}`
+    let rutaPublica: string
+    if (tipo === 'portadas') rutaPublica = `/uploads/biblioteca/${tipo}/${nombreSeguro}`
+    else if (tipo === 'tareas') rutaPublica = `/uploads/tareas/${nombreSeguro}`
+    else rutaPublica = `/uploads/biblioteca/${tipo}/${nombreSeguro}`
     return { ok: true, url: rutaPublica }
   } catch (e: any) {
     console.error('[storage] error escribiendo archivo local:', e?.message || e)
@@ -144,7 +151,7 @@ export async function eliminarArchivo(url?: string | null): Promise<void> {
   // Netlify Blobs: las URLs empiezan con /api/blob/
   if (url.startsWith('/api/blob/')) {
     const partes = url.split('/')
-    const tipo = partes[3] as 'archivos' | 'portadas'
+    const tipo = partes[3] as 'archivos' | 'portadas' | 'tareas'
     const nombre = partes[4]
     if (tipo && nombre) {
       try {
@@ -197,6 +204,39 @@ export const PORTADAS_PERMITIDAS: Record<string, string> = {
   'image/gif': 'gif',
 }
 
+// Tipos permitidos para adjuntos de tareas (foto, video, documento)
+export const TAREA_ARCHIVOS_PERMITIDOS: Record<string, string> = {
+  // Imágenes
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  // Videos
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
+  'video/x-msvideo': 'avi',
+  // Documentos
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'text/plain': 'txt',
+  // Fallback
+  'application/octet-stream': 'bin',
+}
+
+// Determina la categoría del archivo según el MIME type
+export function tipoDeArchivo(mime: string): 'imagen' | 'video' | 'documento' {
+  if (mime.startsWith('image/')) return 'imagen'
+  if (mime.startsWith('video/')) return 'video'
+  return 'documento'
+}
+
 // IMPORTANTE: Netlify Functions tienen un límite duro de ~6 MB en el body
 // de la petición. Si se sube un archivo más grande, la función falla con
 // 500/413 antes de que nuestro código siquiera se ejecute. Por eso bajamos
@@ -205,3 +245,4 @@ export const PORTADAS_PERMITIDAS: Record<string, string> = {
 // desde el cliente con URL firmada (no implementado todavía).
 export const MAX_ARCHIVO = 5 * 1024 * 1024 // 5 MB (límite Netlify-safe)
 export const MAX_PORTADA = 2 * 1024 * 1024 // 2 MB
+export const MAX_TAREA_ARCHIVO = 5 * 1024 * 1024 // 5 MB (Netlify-safe)

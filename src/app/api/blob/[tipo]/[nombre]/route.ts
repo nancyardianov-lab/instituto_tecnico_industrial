@@ -8,7 +8,7 @@ export async function GET(
 ) {
   const { tipo, nombre } = await params
 
-  if (tipo !== 'archivos' && tipo !== 'portadas') {
+  if (tipo !== 'archivos' && tipo !== 'portadas' && tipo !== 'tareas') {
     return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
   }
 
@@ -37,6 +37,10 @@ export async function GET(
       png: 'image/png',
       webp: 'image/webp',
       gif: 'image/gif',
+      mp4: 'video/mp4',
+      webm: 'video/webm',
+      mov: 'video/quicktime',
+      avi: 'video/x-msvideo',
     }
     const contentType = contentTypes[ext] || 'application/octet-stream'
 
