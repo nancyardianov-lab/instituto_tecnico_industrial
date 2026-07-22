@@ -78,24 +78,74 @@ Para que los correos automáticos (activación de cuenta, notificaciones) funcio
 
 ## ☁️ Despliegue en producción
 
-### Opción recomendada: Railway
+### Opción recomendada: Netlify
 
-1. Sube el código a GitHub (ya hecho)
-2. Conecta el repo en https://railway.app
-3. Configura las variables de entorno (las mismas que `.env`)
-4. **Importante**: Cambiar `NEXT_PUBLIC_URL` a tu URL pública de Railway
-5. Agrega un volumen persistente en `/app/db` para la base de datos SQLite
-6. Railway despliega automáticamente
+El proyecto ya está configurado para Netlify (`netlify.toml` incluido).
 
-### Build y Start commands
+#### 1. Base de datos PostgreSQL externa
 
+Netlify no incluye base de datos. Crea una gratis en **Neon** (https://neon.tech):
+- Crea un proyecto → obtén la cadena de conexión
+- Guárdala para el Paso 3: `postgresql://USER:PASSWORD@ep-xxx.neon.tech/iti?sslmode=require`
+
+#### 2. Conectar el repo en Netlify
+
+1. Ve a https://app.netlify.com → **Add new site** → **Import an existing project**
+2. Selecciona el repositorio de GitHub
+3. Netlify detecta automáticamente la configuración de `netlify.toml`:
+   - **Build command**: `npx prisma generate && npx prisma db push --accept-data-loss && next build`
+   - **Publish directory**: `.next`
+   - **Plugin**: `@netlify/plugin-nextjs` (se instala automáticamente)
+
+#### 3. Configurar variables de entorno
+
+En **Site settings → Environment variables**, agrega:
+
+| Variable | Valor |
+|----------|-------|
+| `DATABASE_URL` | URL de PostgreSQL de Neon |
+| `JWT_SECRET` | Genera con: `openssl rand -base64 48` |
+| `NEXT_PUBLIC_URL` | `https://TU-SITIO.netlify.app` |
+| `EMAIL_HOST` | `smtp.gmail.com` |
+| `EMAIL_PORT` | `465` |
+| `EMAIL_SECURE` | `true` |
+| `EMAIL_USER` | Tu correo Gmail |
+| `EMAIL_PASSWORD` | Contraseña de aplicación de 16 caracteres |
+| `EMAIL_FROM_NAME` | `Instituto Tecnico Industrial` |
+| `EMAIL_FROM_ADDRESS` | Tu correo Gmail |
+
+> **Nota**: El `BLOB_READ_WRITE_TOKEN` de Vercel **NO es necesario** en Netlify.
+> El proyecto usa **Netlify Blobs** automáticamente para almacenar archivos
+> (biblioteca, tareas, entregas) en producción.
+
+#### 4. Desplegar
+
+1. Click en **Deploy site**
+2. Espera 3-5 minutos (el primer deploy crea las tablas automáticamente con `prisma db push`)
+3. Tu sitio estará en `https://TU-SITIO.netlify.app`
+
+#### 5. Cargar datos iniciales (opcional)
+
+Para cargar datos de prueba en la base de datos de producción:
 ```bash
-# Build
-npm install && npx prisma generate && npm run build
-
-# Start
-npx prisma db push && npm run start
+# Localmente, con DATABASE_URL apuntando a Neon:
+DATABASE_URL="postgresql://...neon..." npx tsx scripts/seed.ts
 ```
+
+### Almacenamiento de archivos en Netlify
+
+- **Desarrollo local**: archivos en `/public/uploads/` (sistema de archivos)
+- **Producción (Netlify)**: **Netlify Blobs** (persistente, automático)
+- Las URLs de archivos en producción siguen el formato `/api/blob/{tipo}/{nombre}`
+- Límite por archivo: **5 MB** (límite seguro para Netlify Functions)
+
+### Opción alternativa: Railway
+
+1. Sube el código a GitHub
+2. Conecta el repo en https://railway.app
+3. Configura las variables de entorno
+4. Cambia `NEXT_PUBLIC_URL` a tu URL pública de Railway
+5. Agrega un volumen persistente en `/app/db` para SQLite
 
 ## 📁 Estructura del proyecto
 
