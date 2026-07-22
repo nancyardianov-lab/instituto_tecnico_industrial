@@ -20,6 +20,7 @@ export async function GET() {
                 include: {
                   curso: {
                     include: {
+                      carrera: { select: { nombre: true } },
                       asignaciones: {
                         include: { docente: { include: { user: { select: { name: true } } } } },
                       },
@@ -31,6 +32,7 @@ export async function GET() {
           },
         },
       },
+      carrera: { select: { nombre: true, slug: true } },
     },
   })
   if (!user || !user.estudiante) {
@@ -40,7 +42,7 @@ export async function GET() {
   const dias = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES']
   const horarioPorDia: Record<string, any[]> = {}
   for (const d of dias) horarioPorDia[d] = []
-  
+
   for (const h of user.estudiante.horarios) {
     const dia = h.horario.dia
     if (!horarioPorDia[dia]) horarioPorDia[dia] = []
@@ -52,12 +54,18 @@ export async function GET() {
       horaFin: h.horario.horaFin,
       aula: h.horario.aula,
       docente,
+      carrera: h.horario.curso.carrera?.nombre,
     })
   }
-  
+
   for (const d of dias) {
     horarioPorDia[d].sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
   }
 
-  return NextResponse.json({ horarioPorDia, dias })
+  return NextResponse.json({
+    horarioPorDia,
+    dias,
+    carrera: user.carrera,
+    anio: user.estudiante.anio,
+  })
 }

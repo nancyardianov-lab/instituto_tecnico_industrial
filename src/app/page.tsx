@@ -31,6 +31,23 @@ export default function Home() {
     return () => window.removeEventListener('hashchange', handler)
   }, [])
 
+  // Forzar logout al CERRAR la pestaña o el navegador.
+  // Esto evita que la página abra ya logueada del admin en la próxima visita.
+  // Usando sendBeacon para que la petición se complete aunque la pestaña se cierre.
+  useEffect(() => {
+    const onUnload = () => {
+      try {
+        navigator.sendBeacon('/api/auth/logout')
+      } catch {}
+    }
+    window.addEventListener('beforeunload', onUnload)
+    window.addEventListener('pagehide', onUnload)
+    return () => {
+      window.removeEventListener('beforeunload', onUnload)
+      window.removeEventListener('pagehide', onUnload)
+    }
+  }, [])
+
   // Scroll al inicio cuando cambia la ruta
   useEffect(() => {
     window.scrollTo(0, 0)

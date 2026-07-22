@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, FolderTree, BookOpen, Users, Edit, Trash2, Calendar, UserPlus, Clock, MapPin, Upload, Image as ImageIcon, X, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { Timetable } from '../shared/timetable'
 
 export function AdminAcademica() {
   return (
@@ -591,7 +592,7 @@ function AsignacionesTab() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Asignar Materia a Docente</DialogTitle>
             <p className="text-xs text-muted-foreground mt-1">
@@ -602,8 +603,8 @@ function AsignacionesTab() {
             <div>
               <Label>Docente *</Label>
               <Select value={form.docenteId} onValueChange={(v) => setForm({ ...form, docenteId: v })}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar docente" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar docente" /></SelectTrigger>
+                <SelectContent position="popper" className="z-[100]">
                   {docentes.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
                       {d.user.name} {d.user.codigo ? `(${d.user.codigo})` : ''} · {d._count.cursos} cursos
@@ -617,8 +618,8 @@ function AsignacionesTab() {
               <div>
                 <Label>Carrera *</Label>
                 <Select value={form.carreraId} onValueChange={(v) => setForm({ ...form, carreraId: v })}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar carrera" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar carrera" /></SelectTrigger>
+                  <SelectContent position="popper" className="z-[100]">
                     {carreras.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -626,8 +627,8 @@ function AsignacionesTab() {
               <div>
                 <Label>Año / Grado *</Label>
                 <Select value={form.anio} onValueChange={(v) => setForm({ ...form, anio: v })}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar año" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar año" /></SelectTrigger>
+                  <SelectContent position="popper" className="z-[100]">
                     <SelectItem value="4">4° año</SelectItem>
                     <SelectItem value="5">5° año</SelectItem>
                     <SelectItem value="6">6° año</SelectItem>
@@ -711,20 +712,51 @@ function HorariosTab() {
   const { toast } = useToast()
   const [horarios, setHorarios] = useState<any[]>([])
   const [cursos, setCursos] = useState<any[]>([])
-  const [cursoFiltro, setCursoFiltro] = useState('TODOS')
+  const [carreras, setCarreras] = useState<any[]>([])
+  const [filtroCarrera, setFiltroCarrera] = useState('TODOS')
+  const [filtroAnio, setFiltroAnio] = useState('TODOS')
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ cursoId: '', dia: 'LUNES', horaInicio: '07:00', horaFin: '08:30', aula: '' })
+  const [form, setForm] = useState({ cursoId: '', dia: 'LUNES', horaInicio: '13:00', horaFin: '13:35', aula: '' })
 
   const cargar = () => {
-    const url = cursoFiltro !== 'TODOS' ? `/api/admin/horarios?cursoId=${cursoFiltro}` : '/api/admin/horarios'
-    fetch(url).then(r => r.json()).then(d => setHorarios(d.horarios || []))
+    fetch('/api/admin/horarios').then(r => r.json()).then(d => setHorarios(d.horarios || []))
     fetch('/api/admin/cursos').then(r => r.json()).then(d => setCursos(d.cursos || []))
+    fetch('/api/admin/carreras').then(r => r.json()).then(d => setCarreras(d.carreras || []))
   }
-  useEffect(() => { cargar() }, [cursoFiltro])
+  useEffect(() => { cargar() }, [])
+
+  // Aplicar filtros localmente (carrera y año)
+  const horariosFiltrados = horarios.filter(h => {
+    if (filtroCarrera !== 'TODOS' && h.curso.carreraId !== filtroCarrera) return false
+    if (filtroAnio !== 'TODOS' && String(h.curso.anio) !== filtroAnio) return false
+    return true
+  })
+
+  // Cursos filtrados por carrera/año para el modal de crear
+  const cursosParaModal = cursos.filter(c => {
+    if (filtroCarrera !== 'TODOS' && c.carreraId !== filtroCarrera) return false
+    if (filtroAnio !== 'TODOS' && String(c.anio) !== filtroAnio) return false
+    return true
+  })
+
+  // Construir entradas para el Timetable
+  const entries = horariosFiltrados.map(h => ({
+    id: h.id,
+    curso: h.curso.nombre,
+    carrera: h.curso.carrera?.nombre,
+    aula: h.aula,
+    horaInicio: h.horaInicio,
+    horaFin: h.horaFin,
+    dia: h.dia,
+  }))
 
   const crear = async () => {
     if (!form.cursoId) {
-      toast({ title: 'Error', description: 'Seleccione un curso', variant: 'destructive' })
+      toast({ title: 'Error', description: 'Seleccione una materia', variant: 'destructive' })
+      return
+    }
+    if (form.horaInicio >= form.horaFin) {
+      toast({ title: 'Error', description: 'La hora de inicio debe ser menor que la hora de fin', variant: 'destructive' })
       return
     }
     const res = await fetch('/api/admin/horarios', {
@@ -736,7 +768,7 @@ function HorariosTab() {
     if (data.ok) {
       toast({ title: 'Horario creado', description: 'Los estudiantes inscritos lo verán automáticamente' })
       setOpen(false)
-      setForm({ cursoId: '', dia: 'LUNES', horaInicio: '07:00', horaFin: '08:30', aula: '' })
+      setForm({ cursoId: '', dia: 'LUNES', horaInicio: '13:00', horaFin: '13:35', aula: '' })
       cargar()
     } else {
       toast({ title: 'Error', description: data.error || 'No se pudo crear', variant: 'destructive' })
@@ -756,142 +788,181 @@ function HorariosTab() {
   }
 
   const DIAS = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES']
+  const DIAS_LABEL: Record<string, string> = {
+    LUNES: 'Lunes', MARTES: 'Martes', MIERCOLES: 'Miércoles', JUEVES: 'Jueves', VIERNES: 'Viernes',
+  }
 
   return (
-    <Card className="iti-card">
-      <CardHeader>
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" /> Horarios de Clases
-            </CardTitle>
-            <CardDescription className="text-xs mt-1">
-              Defina los días y horas en que se imparte cada curso. Los estudiantes inscritos verán automáticamente su horario.
-            </CardDescription>
+    <div className="space-y-4">
+      <Card className="iti-card">
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" /> Horarios de Clases
+              </CardTitle>
+              <CardDescription className="text-xs mt-1">
+                Defina días y horas en que se imparte cada materia. Los estudiantes inscritos las verán automáticamente. Use los filtros para ver horarios de una carrera/año específico.
+              </CardDescription>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Select value={filtroCarrera} onValueChange={setFiltroCarrera}>
+                <SelectTrigger className="w-48"><SelectValue placeholder="Filtrar carrera" /></SelectTrigger>
+                <SelectContent position="popper" className="z-[100]">
+                  <SelectItem value="TODOS">Todas las carreras</SelectItem>
+                  {carreras.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={filtroAnio} onValueChange={setFiltroAnio}>
+                <SelectTrigger className="w-32"><SelectValue placeholder="Año" /></SelectTrigger>
+                <SelectContent position="popper" className="z-[100]">
+                  <SelectItem value="TODOS">Todos</SelectItem>
+                  <SelectItem value="4">4° año</SelectItem>
+                  <SelectItem value="5">5° año</SelectItem>
+                  <SelectItem value="6">6° año</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={() => setOpen(true)} disabled={cursosParaModal.length === 0}>
+                <Plus className="h-4 w-4 mr-1" /> Nuevo horario
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Select value={cursoFiltro} onValueChange={setCursoFiltro}>
-              <SelectTrigger className="w-48"><SelectValue placeholder="Filtrar curso" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="TODOS">Todos los cursos</SelectItem>
-                {cursos.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button size="sm" onClick={() => setOpen(true)} disabled={cursos.length === 0}>
-              <Plus className="h-4 w-4 mr-1" /> Nuevo horario
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {cursos.length === 0 ? (
-          <div className="text-center py-8 bg-muted/20 rounded-md">
-            <BookOpen className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">
-              Primero debe crear cursos en la pestaña "Cursos" para poder asignarles horarios.
-            </p>
-          </div>
-        ) : horarios.length === 0 ? (
-          <div className="text-center py-8 bg-muted/20 rounded-md">
-            <Calendar className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">
-              No hay horarios definidos. Haga clic en "Nuevo horario" para empezar.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/30">
-                <tr>
-                  <th className="text-left p-2">Curso</th>
-                  <th className="text-left p-2">Carrera</th>
-                  <th className="text-left p-2">Día</th>
-                  <th className="text-left p-2">Hora</th>
-                  <th className="text-left p-2">Aula</th>
-                  <th className="text-center p-2">Estudiantes</th>
-                  <th className="text-center p-2">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {horarios.map((h) => (
-                  <tr key={h.id} className="border-b hover:bg-muted/10">
-                    <td className="p-2 font-medium">{h.curso.nombre}</td>
-                    <td className="p-2 text-xs">{h.curso.carrera.nombre}</td>
-                    <td className="p-2"><Badge variant="outline" className="text-[10px]">{h.dia}</Badge></td>
-                    <td className="p-2 text-xs">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {h.horaInicio} - {h.horaFin}
-                      </span>
-                    </td>
-                    <td className="p-2 text-xs">
-                      {h.aula ? <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {h.aula}</span> : '—'}
-                    </td>
-                    <td className="p-2 text-center text-xs">{h._count?.estudiantes || 0}</td>
-                    <td className="p-2 text-center">
-                      <Button size="sm" variant="ghost" onClick={() => eliminar(h.id)}>
-                        <Trash2 className="h-3 w-3 text-destructive" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
+        </CardHeader>
+        <CardContent>
+          {cursos.length === 0 ? (
+            <div className="text-center py-8 bg-muted/20 rounded-md">
+              <BookOpen className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Primero debe crear materias en la pestaña "Cursos" o asignar materias a docentes en "Asignar Docentes" para poder definir horarios.
+              </p>
+            </div>
+          ) : horariosFiltrados.length === 0 ? (
+            <div className="text-center py-8 bg-muted/20 rounded-md">
+              <Calendar className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No hay horarios definidos con los filtros seleccionados. Haga clic en "Nuevo horario" para empezar.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Vista timetable semanal */}
+              <Timetable
+                entries={entries}
+                showCarrera={filtroCarrera === 'TODOS'}
+                showAula={true}
+                showDocente={false}
+              />
+              {/* Tabla detallada con acciones */}
+              <div className="overflow-x-auto mt-4 border rounded-md">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/30">
+                    <tr>
+                      <th className="text-left p-2">Materia</th>
+                      <th className="text-left p-2">Carrera</th>
+                      <th className="text-left p-2">Año</th>
+                      <th className="text-left p-2">Día</th>
+                      <th className="text-left p-2">Hora</th>
+                      <th className="text-left p-2">Aula</th>
+                      <th className="text-center p-2">Estudiantes</th>
+                      <th className="text-center p-2">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {horariosFiltrados
+                      .sort((a, b) => {
+                        const dayOrder = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES']
+                        const d = dayOrder.indexOf(a.dia) - dayOrder.indexOf(b.dia)
+                        if (d !== 0) return d
+                        return a.horaInicio.localeCompare(b.horaInicio)
+                      })
+                      .map((h) => (
+                      <tr key={h.id} className="border-b hover:bg-muted/10">
+                        <td className="p-2 font-medium">{h.curso.nombre}</td>
+                        <td className="p-2 text-xs">{h.curso.carrera?.nombre || '—'}</td>
+                        <td className="p-2 text-xs">{h.curso.anio}°</td>
+                        <td className="p-2"><Badge variant="outline" className="text-[10px]">{DIAS_LABEL[h.dia] || h.dia}</Badge></td>
+                        <td className="p-2 text-xs">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> {h.horaInicio} - {h.horaFin}
+                          </span>
+                        </td>
+                        <td className="p-2 text-xs">
+                          {h.aula ? <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {h.aula}</span> : '—'}
+                        </td>
+                        <td className="p-2 text-center text-xs">{h._count?.estudiantes || 0}</td>
+                        <td className="p-2 text-center">
+                          <Button size="sm" variant="ghost" onClick={() => eliminar(h.id)}>
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nuevo Horario de Clase</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Curso *</Label>
-              <Select value={form.cursoId} onValueChange={(v) => setForm({ ...form, cursoId: v })}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar curso" /></SelectTrigger>
-                <SelectContent>
-                  {cursos.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nombre} · {c.carrera.nombre} · {c.anio}°
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Día *</Label>
-              <Select value={form.dia} onValueChange={(v) => setForm({ ...form, dia: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {DIAS.map((d) => (
-                    <SelectItem key={d} value={d}>{d.charAt(0) + d.slice(1).toLowerCase()}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Nuevo Horario de Clase</DialogTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                {filtroCarrera !== 'TODOS' || filtroAnio !== 'TODOS'
+                  ? 'Se mostrarán las materias con los filtros seleccionados.'
+                  : 'Seleccione una materia, día y horario.'}
+              </p>
+            </DialogHeader>
+            <div className="space-y-3">
               <div>
-                <Label>Hora inicio *</Label>
-                <Input type="time" value={form.horaInicio} onChange={(e) => setForm({ ...form, horaInicio: e.target.value })} />
+                <Label>Materia *</Label>
+                <Select value={form.cursoId} onValueChange={(v) => setForm({ ...form, cursoId: v })}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar materia" /></SelectTrigger>
+                  <SelectContent position="popper" className="z-[100]">
+                    {cursosParaModal.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nombre} · {c.carrera?.nombre} · {c.anio}°
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {cursosParaModal.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">No hay materias con los filtros seleccionados.</p>
+                )}
               </div>
               <div>
-                <Label>Hora fin *</Label>
-                <Input type="time" value={form.horaFin} onChange={(e) => setForm({ ...form, horaFin: e.target.value })} />
+                <Label>Día *</Label>
+                <Select value={form.dia} onValueChange={(v) => setForm({ ...form, dia: v })}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent position="popper" className="z-[100]">
+                    {DIAS.map((d) => (
+                      <SelectItem key={d} value={d}>{DIAS_LABEL[d]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Hora inicio *</Label>
+                  <Input type="time" value={form.horaInicio} onChange={(e) => setForm({ ...form, horaInicio: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Hora fin *</Label>
+                  <Input type="time" value={form.horaFin} onChange={(e) => setForm({ ...form, horaFin: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <Label>Aula</Label>
+                <Input value={form.aula} onChange={(e) => setForm({ ...form, aula: e.target.value })} placeholder="Ej: Aula 12" />
+              </div>
+              <Button onClick={crear} className="w-full bg-primary hover:bg-primary/90">
+                <Plus className="h-4 w-4 mr-2" /> Crear horario
+              </Button>
             </div>
-            <div>
-              <Label>Aula</Label>
-              <Input value={form.aula} onChange={(e) => setForm({ ...form, aula: e.target.value })} placeholder="Ej: Aula 12" />
-            </div>
-            <Button onClick={crear} className="w-full bg-primary hover:bg-primary/90">
-              <Plus className="h-4 w-4 mr-2" /> Crear horario
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </Card>
+          </DialogContent>
+        </Dialog>
+      </Card>
+    </div>
   )
 }

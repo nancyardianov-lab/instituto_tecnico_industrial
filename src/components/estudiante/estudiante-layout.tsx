@@ -10,18 +10,20 @@ import { useAuthStore, useRouterStore } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 import {
   LayoutDashboard, User, BookOpen, FileText, Calendar, Bell,
-  GraduationCap, Clock, TrendingUp, ChevronRight, Library, ClipboardList, Award
+  GraduationCap, Clock, TrendingUp, ChevronRight, Library, ClipboardList, Award, BookMarked
 } from 'lucide-react'
 import { EstudianteNotas } from './estudiante-notas'
 import { EstudianteBiblioteca } from './estudiante-biblioteca'
 import { EstudianteTareas } from './estudiante-tareas'
 import { EstudianteHorario } from './estudiante-horario'
 import { EstudiantePerfil } from './estudiante-perfil'
+import { EstudianteInscripcion } from './estudiante-inscripcion'
 import { NotificacionesBell } from '../shared/notificaciones-bell'
 
 const NAV = [
   { key: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
   { key: 'perfil', label: 'Perfil', icon: User },
+  { key: 'inscripcion', label: 'Inscripción a Materias', icon: BookMarked },
   { key: 'notas', label: 'Notas', icon: Award },
   { key: 'biblioteca', label: 'Biblioteca', icon: Library },
   { key: 'tareas', label: 'Tareas', icon: ClipboardList },
@@ -111,6 +113,7 @@ export function EstudianteLayout() {
           <EstudianteDashboard data={data} loading={loading} notifs={notifs} navigate={navigate} />
         )}
         {active === 'perfil' && <EstudiantePerfil />}
+        {active === 'inscripcion' && <EstudianteInscripcion />}
         {active === 'notas' && <EstudianteNotas />}
         {active === 'biblioteca' && <EstudianteBiblioteca />}
         {active === 'tareas' && <EstudianteTareas />}

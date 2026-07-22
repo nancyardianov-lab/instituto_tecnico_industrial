@@ -43,16 +43,28 @@ export async function setSessionCookie(token: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    // Cookie de sesión: sin maxAge, se borra al cerrar el navegador.
-    // Así la página SIEMPRE abre en el login y no permanece iniciada
-    // la sesión del administrador entre visitas.
+    // Sesión corta: la cookie expira en 8 horas. Combinada con la
+    // limpieza agresiva al cargar la página principal (ver page.tsx)
+    // y el logout automático al cerrar el navegador, garantiza que la
+    // página NO abra ya logueada del admin.
+    maxAge: 60 * 60 * 8, // 8 horas
     path: '/',
   })
 }
 
 export async function clearSessionCookie() {
   const cookieStore = await cookies()
+  // Borra la cookie en múltiples formatos para garantizar que se elimine
+  // sin importar cómo fue setada originalmente.
   cookieStore.delete(COOKIE_NAME)
+  cookieStore.set(COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    expires: new Date(0),
+    maxAge: 0,
+  })
 }
 
 export const SESSION_COOKIE_NAME = COOKIE_NAME
