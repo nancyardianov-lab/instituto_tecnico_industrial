@@ -41,3 +41,33 @@ Stage Summary:
 - Archivos creados:
   * scripts/migraciones/migrar-cursos-a-materias.ts
 - Pendiente: push a GitHub para que Netlify despliegue automáticamente. El usuario deberá ejecutar la migración `npx tsx scripts/migraciones/migrar-cursos-a-materias.ts` contra la base de datos de producción para limpiar los cursos legacy.
+
+---
+Task ID: 2
+Agent: main
+Task: Cambiar asignación de materias: admin escribe el nombre en vez de seleccionar de dropdown; arreglar error al editar imagen de carrera
+
+Work Log:
+- Análisis de captura de pantalla del usuario: muestra dropdown con "Dibujo de Construcción - 5° año" como materia (formato legacy) → el dropdown no sirve
+- Modificación de `src/app/api/admin/asignaciones/route.ts` POST: ahora acepta `materiaNombre + carreraId + anio + docenteId` y hace find-or-create del Curso por (nombre, carreraId, anio). Modo legacy con `cursoId` sigue funcionando.
+- Modificación de `src/components/admin/admin-academica.tsx` (AsignacionesTab):
+  * Eliminado el dropdown de cursos y los filtros por carrera/año
+  * Agregado input de texto para nombre de materia con <datalist> de sugerencias
+  * Agregado selects directos para carrera y año (junto al campo materia)
+  * Validaciones: docente, carrera, año y materiaNombre (mínimo 2 caracteres)
+  * Botón deshabilitado durante envío (enviando state con Loader2)
+- Modificación de `src/components/admin/admin-academica.tsx` (CarrerasTab.subirImagen):
+  * Eliminada la dependencia de /api/admin/upload-imagen (que fallaba en Netlify)
+  * Ahora usa FileReader.readAsDataURL() para convertir la imagen a base64 en el cliente
+  * La imagen se guarda directamente en el campo `imagen` de la Carrera (String en BD)
+  * Límite bajado a 1.5 MB (las data URLs son ~33% más grandes que el binario)
+  * Esto arregla el error al editar imagen de carrera en producción
+- Build exitoso: `npm run build` → "✓ Compiled successfully in 12.2s"
+- Commit `ff9869e` y push a GitHub (Netlify desplegará automáticamente)
+
+Stage Summary:
+- 2 problemas corregidos en este turno:
+  1. Asignación de materias: el admin escribe libremente el nombre de la materia (Física, Teoría de la Información, etc.) → si no existe, se crea automáticamente. Ya no aparecen los cursos legacy tipo "Dibujo de Construcción - 5° año" como opciones.
+  2. Imagen de carrera: ahora se convierte a base64 en el cliente y se guarda en la BD directamente, sin depender de Netlify Blobs. Arregla el error al editar la imagen.
+- No requiere migración de BD: las materias se crean on-the-fly al asignarlas.
+- Los cursos legacy existentes siguen en la BD pero el admin ya no los ve como opciones en el formulario de asignación (puede eliminarlos manualmente desde la pestaña "Cursos" si lo desea).
