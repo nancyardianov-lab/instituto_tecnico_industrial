@@ -54,24 +54,31 @@ function CarrerasTab() {
   useEffect(() => { cargar() }, [])
 
   const subirImagen = async (file: File) => {
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ title: 'Imagen demasiado grande', description: 'El máximo es 2 MB', variant: 'destructive' })
+    if (file.size > 1.5 * 1024 * 1024) {
+      toast({ title: 'Imagen demasiado grande', description: 'El máximo es 1.5 MB. Use una imagen más pequeña.', variant: 'destructive' })
+      return
+    }
+    // Validar tipo
+    const tiposOk = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if (!tiposOk.includes(file.type)) {
+      toast({ title: 'Tipo no permitido', description: 'Solo JPG, PNG, WebP o GIF', variant: 'destructive' })
       return
     }
     setSubiendoImagen(true)
     try {
-      const fd = new FormData()
-      fd.append('imagen', file)
-      const res = await fetch('/api/admin/upload-imagen', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (data.ok) {
-        setForm(f => ({ ...f, imagen: data.url }))
-        toast({ title: 'Imagen subida' })
-      } else {
-        toast({ title: 'Error', description: data.error || 'No se pudo subir la imagen', variant: 'destructive' })
-      }
+      // Convertir a base64 data URL en el cliente.
+      // Esto evita la dependencia de Netlify Blobs (que puede fallar en producción)
+      // y guarda la imagen directamente en la BD como String.
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('No se pudo leer el archivo'))
+        reader.readAsDataURL(file)
+      })
+      setForm(f => ({ ...f, imagen: dataUrl }))
+      toast({ title: 'Imagen cargada', description: 'No olvide guardar los cambios al final' })
     } catch (e: any) {
-      toast({ title: 'Error', description: e?.message || 'Error inesperado', variant: 'destructive' })
+      toast({ title: 'Error', description: e?.message || 'Error inesperado al cargar la imagen', variant: 'destructive' })
     } finally {
       setSubiendoImagen(false)
     }
@@ -228,7 +235,7 @@ function CarrerasTab() {
                       <div className="flex flex-col items-center gap-1">
                         <Upload className="h-8 w-8 text-primary/60" />
                         <div className="text-sm font-medium">Haz clic para seleccionar una imagen</div>
-                        <div className="text-xs text-muted-foreground">JPG, PNG, WebP, GIF · máx 2 MB</div>
+                        <div className="text-xs text-muted-foreground">JPG, PNG, WebP, GIF · máx 1.5 MB</div>
                       </div>
                     )}
                   </div>
@@ -421,9 +428,14 @@ function AsignacionesTab() {
   const [cursos, setCursos] = useState<any[]>([])
   const [carreras, setCarreras] = useState<any[]>([])
   const [open, setOpen] = useState(false)
-  const [filtroCarrera, setFiltroCarrera] = useState('TODOS')
-  const [filtroAnio, setFiltroAnio] = useState('TODOS')
-  const [form, setForm] = useState({ cursoId: '', docenteId: '', anio: '' })
+  const [enviando, setEnviando] = useState(false)
+  // El admin escribe el nombre de la materia (ya NO se selecciona de una lista)
+  const [form, setForm] = useState({
+    docenteId: '',
+    carreraId: '',
+    anio: '',
+    materiaNombre: '',
+  })
 
   const cargar = () => {
     fetch('/api/admin/asignaciones').then(r => r.json()).then(d => setAsignaciones(d.asignaciones || []))
@@ -433,49 +445,64 @@ function AsignacionesTab() {
   }
   useEffect(() => { cargar() }, [])
 
-  // Filtrar cursos según carrera y año seleccionados en el diálogo
-  const cursosFiltrados = cursos.filter(c => {
-    if (filtroCarrera !== 'TODOS' && c.carreraId !== filtroCarrera) return false
-    if (filtroAnio !== 'TODOS' && String(c.anio) !== filtroAnio) return false
+  // Sugerencias: materias existentes (de la BD) para la carrera+año elegidos,
+  // mostradas como <datalist> para que el admin pueda elegir o escribir una nueva.
+  const materiasSugeridas = cursos.filter(c => {
+    if (form.carreraId && c.carreraId !== form.carreraId) return false
+    if (form.anio && String(c.anio) !== form.anio) return false
     return true
   })
 
-  // Al seleccionar un curso, auto-llenar el año desde el curso
-  const seleccionarCurso = (cursoId: string) => {
-    const curso = cursos.find(c => c.id === cursoId)
-    setForm(f => ({ ...f, cursoId, anio: curso ? String(curso.anio) : '' }))
-  }
-
-  // Detectar si la materia seleccionada ya tiene un docente asignado
-  const materiaSeleccionada = cursos.find(c => c.id === form.cursoId)
-  const asignacionExistente = materiaSeleccionada
-    ? asignaciones.find(a => a.cursoId === form.cursoId)
+  // Detectar si la materia escrita ya existe Y ya tiene docente asignado
+  const materiaCoincidente = materiasSugeridas.find(c =>
+    c.nombre.trim().toLowerCase() === form.materiaNombre.trim().toLowerCase()
+  )
+  const asignacionExistente = materiaCoincidente
+    ? asignaciones.find(a => a.cursoId === materiaCoincidente.id)
     : null
 
   const crear = async () => {
-    if (!form.cursoId || !form.docenteId) {
-      toast({ title: 'Error', description: 'Seleccione curso y docente', variant: 'destructive' })
+    if (!form.docenteId) {
+      toast({ title: 'Error', description: 'Seleccione un docente', variant: 'destructive' })
+      return
+    }
+    if (!form.carreraId) {
+      toast({ title: 'Error', description: 'Seleccione una carrera', variant: 'destructive' })
       return
     }
     if (!form.anio) {
-      toast({ title: 'Error', description: 'Debe seleccionar un curso que tenga año asignado', variant: 'destructive' })
+      toast({ title: 'Error', description: 'Seleccione un año / grado', variant: 'destructive' })
       return
     }
-    const res = await fetch('/api/admin/asignaciones', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    const data = await res.json()
-    if (data.ok) {
-      toast({ title: 'Curso asignado', description: 'El docente ahora podrá gestionar este curso' })
-      setOpen(false)
-      setForm({ cursoId: '', docenteId: '', anio: '' })
-      setFiltroCarrera('TODOS')
-      setFiltroAnio('TODOS')
-      cargar()
-    } else {
-      toast({ title: 'Error', description: data.error || 'No se pudo asignar', variant: 'destructive' })
+    if (form.materiaNombre.trim().length < 2) {
+      toast({ title: 'Error', description: 'Escriba el nombre de la materia (mínimo 2 caracteres)', variant: 'destructive' })
+      return
+    }
+    setEnviando(true)
+    try {
+      const res = await fetch('/api/admin/asignaciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          docenteId: form.docenteId,
+          carreraId: form.carreraId,
+          anio: form.anio,
+          materiaNombre: form.materiaNombre.trim(),
+        }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        toast({ title: 'Materia asignada', description: `"${form.materiaNombre}" asignada al docente correctamente` })
+        setOpen(false)
+        setForm({ docenteId: '', carreraId: '', anio: '', materiaNombre: '' })
+        cargar()
+      } else {
+        toast({ title: 'Error', description: data.error || 'No se pudo asignar', variant: 'destructive' })
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e?.message || 'Error inesperado', variant: 'destructive' })
+    } finally {
+      setEnviando(false)
     }
   }
 
@@ -511,7 +538,7 @@ function AsignacionesTab() {
               Asigne a cada docente qué materia individual impartirá, en qué carrera y en qué año/grado. Ej: Prof. Pérez → Programación → 6° Computación. <strong>Una materia solo puede tener un docente asignado.</strong>
             </CardDescription>
           </div>
-          <Button size="sm" onClick={() => setOpen(true)} disabled={docentes.length === 0 || cursos.length === 0}>
+          <Button size="sm" onClick={() => setOpen(true)} disabled={docentes.length === 0 || carreras.length === 0}>
             <Plus className="h-4 w-4 mr-1" /> Nueva asignación
           </Button>
         </div>
@@ -568,7 +595,7 @@ function AsignacionesTab() {
           <DialogHeader>
             <DialogTitle>Asignar Materia a Docente</DialogTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Seleccione el docente, luego filtre por carrera y año para encontrar la materia que impartirá. <strong>Una materia solo puede tener un docente.</strong>
+              Seleccione el docente, la carrera y el año, y luego <strong>escriba el nombre de la materia</strong> que impartirá. Si la materia no existe, se creará automáticamente. <strong>Una materia solo puede tener un docente.</strong>
             </p>
           </DialogHeader>
           <div className="space-y-3">
@@ -586,58 +613,54 @@ function AsignacionesTab() {
               </Select>
             </div>
 
-            {/* Filtros para encontrar el curso */}
-            <div className="bg-muted/20 p-3 rounded-md space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Filtros para encontrar el curso:</div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs">Carrera</Label>
-                  <Select value={filtroCarrera} onValueChange={setFiltroCarrera}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="TODOS">Todas</SelectItem>
-                      {carreras.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Año / Grado</Label>
-                  <Select value={filtroAnio} onValueChange={setFiltroAnio}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="TODOS">Todos</SelectItem>
-                      <SelectItem value="4">4° año</SelectItem>
-                      <SelectItem value="5">5° año</SelectItem>
-                      <SelectItem value="6">6° año</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Carrera *</Label>
+                <Select value={form.carreraId} onValueChange={(v) => setForm({ ...form, carreraId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar carrera" /></SelectTrigger>
+                  <SelectContent>
+                    {carreras.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Año / Grado *</Label>
+                <Select value={form.anio} onValueChange={(v) => setForm({ ...form, anio: v })}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar año" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="4">4° año</SelectItem>
+                    <SelectItem value="5">5° año</SelectItem>
+                    <SelectItem value="6">6° año</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <div>
-              <Label>Curso / Materia *</Label>
-              <Select value={form.cursoId} onValueChange={seleccionarCurso}>
-                <SelectTrigger><SelectValue placeholder={cursosFiltrados.length === 0 ? 'No hay cursos con estos filtros' : 'Seleccionar curso'} /></SelectTrigger>
-                <SelectContent>
-                  {cursosFiltrados.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nombre} · {c.carrera.nombre} · {c.anio}°
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {cursosFiltrados.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">No hay cursos con los filtros seleccionados. Cree cursos en la pestaña "Cursos" o cambie los filtros.</p>
-              )}
+              <Label>Nombre de la materia *</Label>
+              <Input
+                value={form.materiaNombre}
+                onChange={(e) => setForm({ ...form, materiaNombre: e.target.value })}
+                placeholder="Ej: Física, Teoría de la Información, Organización de Empresas, Programación..."
+                list="materias-sugeridas"
+                autoFocus
+              />
+              <datalist id="materias-sugeridas">
+                {materiasSugeridas.map((c) => (
+                  <option key={c.id} value={c.nombre} />
+                ))}
+              </datalist>
+              <p className="text-xs text-muted-foreground mt-1">
+                Escriba el nombre de la materia. {materiasSugeridas.length > 0 && `Hay ${materiasSugeridas.length} materia(s) ya registrada(s) para esta carrera y año — puede elegirlas de la lista o escribir una nueva.`}
+              </p>
             </div>
 
-            {form.cursoId && (
+            {form.materiaNombre.trim().length >= 2 && form.docenteId && form.carreraId && form.anio && (
               <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded text-xs text-blue-800 dark:text-blue-200">
                 <div className="font-medium mb-1">Resumen de la asignación:</div>
                 <div>Docente: <strong>{docentes.find(d => d.id === form.docenteId)?.user.name || '—'}</strong></div>
-                <div>Materia: <strong>{cursos.find(c => c.id === form.cursoId)?.nombre || '—'}</strong></div>
-                <div>Carrera: <strong>{cursos.find(c => c.id === form.cursoId)?.carrera.nombre || '—'}</strong></div>
+                <div>Materia: <strong>{form.materiaNombre.trim()}</strong></div>
+                <div>Carrera: <strong>{carreras.find(c => c.id === form.carreraId)?.nombre || '—'}</strong></div>
                 <div>Año: <strong>{form.anio}°</strong></div>
               </div>
             )}
@@ -662,9 +685,17 @@ function AsignacionesTab() {
             <Button
               onClick={crear}
               className="w-full bg-primary hover:bg-primary/90"
-              disabled={!form.cursoId || !form.docenteId || !!(asignacionExistente && asignacionExistente.docenteId !== form.docenteId)}
+              disabled={
+                enviando ||
+                !form.docenteId ||
+                !form.carreraId ||
+                !form.anio ||
+                form.materiaNombre.trim().length < 2 ||
+                !!(asignacionExistente && asignacionExistente.docenteId !== form.docenteId)
+              }
             >
-              <UserPlus className="h-4 w-4 mr-2" /> Asignar materia
+              {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <UserPlus className="h-4 w-4 mr-2" />}
+              {enviando ? 'Asignando...' : 'Asignar materia'}
             </Button>
           </div>
         </DialogContent>

@@ -30,7 +30,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ asignaciones })
 }
 
-// POST - asignar una materia individual a un docente
+// POST - asignar una materia individual a un docente.
+// Acepta DOS modos:
+//   Modo A (legacy): { cursoId, docenteId, anio }
+//   Modo B (nuevo, recomendado): { materiaNombre, carreraId, anio, docenteId }
+//     → el backend hace find-or-create del Curso por (nombre, carreraId, anio)
 // REGLA: solo UN docente por materia. Si la materia ya tiene docente
 // asignado, se devuelve error indicando qué docente lo tiene.
 export async function POST(req: NextRequest) {
@@ -41,22 +45,65 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { cursoId, docenteId, anio } = body
+    const { cursoId, docenteId, anio, materiaNombre, carreraId } = body
 
-    if (!cursoId || !docenteId || !anio) {
-      return NextResponse.json({ error: 'Curso, docente y año son requeridos' }, { status: 400 })
+    if (!docenteId || !anio) {
+      return NextResponse.json({ error: 'Docente y año son requeridos', status: 400 }, { status: 400 })
     }
 
-    // Verificar que existan
-    const curso = await db.curso.findUnique({ where: { id: cursoId } })
-    if (!curso) return NextResponse.json({ error: 'Curso no encontrado' }, { status: 404 })
-
+    // Verificar docente
     const docente = await db.docente.findUnique({ where: { id: docenteId } })
     if (!docente) return NextResponse.json({ error: 'Docente no encontrado' }, { status: 404 })
 
+    let cursoIdFinal: string = cursoId
+
+    // MODO B: si viene materiaNombre + carreraId, hacer find-or-create
+    if (!cursoIdFinal && materiaNombre && carreraId) {
+      const nombreLimpio = String(materiaNombre).trim()
+      if (nombreLimpio.length < 2) {
+        return NextResponse.json({ error: 'El nombre de la materia es muy corto' }, { status: 400 })
+      }
+      const carrera = await db.carrera.findUnique({ where: { id: carreraId } })
+      if (!carrera) return NextResponse.json({ error: 'Carrera no encontrada' }, { status: 404 })
+
+      // Buscar materia existente con mismo nombre + carrera + año (case-insensitive exact)
+      const existente = await db.curso.findFirst({
+        where: {
+          nombre: { equals: nombreLimpio, mode: 'insensitive' },
+          carreraId,
+          anio: parseInt(anio),
+        },
+      })
+      if (existente) {
+        cursoIdFinal = existente.id
+      } else {
+        // Crear la materia individual
+        const nueva = await db.curso.create({
+          data: {
+            nombre: nombreLimpio,
+            carreraId,
+            anio: parseInt(anio),
+            descripcion: `Materia de ${anio}° año`,
+            pensum: '[]',
+            activo: true,
+          },
+        })
+        cursoIdFinal = nueva.id
+      }
+    }
+
+    if (!cursoIdFinal) {
+      return NextResponse.json({
+        error: 'Debe indicar el nombre de la materia, carrera y año (o un cursoId)',
+      }, { status: 400 })
+    }
+
+    const curso = await db.curso.findUnique({ where: { id: cursoIdFinal } })
+    if (!curso) return NextResponse.json({ error: 'Curso no encontrado' }, { status: 404 })
+
     // Verificar si la materia ya tiene un docente asignado (regla: 1 docente por materia)
     const existente = await db.cursoAsignado.findFirst({
-      where: { cursoId },
+      where: { cursoId: cursoIdFinal },
       include: { docente: { include: { user: { select: { name: true } } } } },
     })
     if (existente && existente.docenteId !== docenteId) {
@@ -68,7 +115,7 @@ export async function POST(req: NextRequest) {
     // Crear asignación (si ya existe exactamente igual, @unique evita duplicados)
     try {
       const asignacion = await db.cursoAsignado.create({
-        data: { cursoId, docenteId, anio: parseInt(anio) },
+        data: { cursoId: cursoIdFinal, docenteId, anio: parseInt(anio) },
       })
       return NextResponse.json({ ok: true, asignacion })
     } catch (e: any) {
@@ -81,6 +128,6 @@ export async function POST(req: NextRequest) {
     }
   } catch (e: any) {
     console.error('[admin/asignaciones POST] Error:', e?.message || e)
-    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+    return NextResponse.json({ error: 'Error del servidor: ' + (e?.message || 'desconocido') }, { status: 500 })
   }
 }
