@@ -450,86 +450,52 @@ Instituto Técnico Industrial`,
     ],
   }
 
-  // Crear cursos para Computación
-  for (const anio of [4, 5, 6]) {
-    await prisma.curso.upsert({
-      where: { id: `curso-computacion-${anio}` },
-      update: {},
-      create: {
-        id: `curso-computacion-${anio}`,
-        nombre: `Computación - ${anio}° año`,
-        carreraId: carreraRecords['computacion'].id,
-        anio,
-        descripcion: `Cursos correspondientes al ${anio}° año de la carrera de Computación`,
-        pensum: JSON.stringify(pensumComputacion[anio]),
-      },
-    })
+  // ===============================================
+  // 4. CURSOS / MATERIAS INDIVIDUALES
+  // ===============================================
+  // Cada Curso es una MATERIA individual (no un carrera+año).
+  // Ej: "Física", "Teoría de la Información", "Organización de Empresas".
+  // Se derivan del pensum de cada carrera.
+  console.log('📚 Creando materias individuales...')
+  const materiaRecords: Record<string, string> = {} // clave → id
+
+  const crearMateriasDesdePensum = async (
+    carreraId: string,
+    carreraNombre: string,
+    pensum: Record<number, any[]>,
+  ) => {
+    for (const anio of [4, 5, 6]) {
+      const lista = pensum[anio] || []
+      for (const m of lista) {
+        const nombre = (m.area || m.subarea || '').trim()
+        if (!nombre) continue
+        const clave = `${carreraId}::${anio}::${nombre}`
+        const c = await prisma.curso.upsert({
+          where: { id: clave },
+          update: {},
+          create: {
+            id: clave,
+            nombre,
+            carreraId,
+            anio,
+            descripcion: `Materia de ${anio}° año de ${carreraNombre}`,
+            pensum: '[]',
+            activo: true,
+          },
+        })
+        materiaRecords[clave] = c.id
+      }
+    }
   }
 
-  // Crear cursos para Dibujo de Construcción
-  for (const anio of [4, 5, 6]) {
-    await prisma.curso.upsert({
-      where: { id: `curso-dibujo-${anio}` },
-      update: {},
-      create: {
-        id: `curso-dibujo-${anio}`,
-        nombre: `Dibujo de Construcción - ${anio}° año`,
-        carreraId: carreraRecords['dibujo-construccion'].id,
-        anio,
-        descripcion: `Cursos correspondientes al ${anio}° año de la carrera de Dibujo de Construcción`,
-        pensum: JSON.stringify(pensumDibujoConstruccion[anio]),
-      },
-    })
-  }
+  await crearMateriasDesdePensum(carreraRecords['computacion'].id, 'Computación', pensumComputacion)
+  await crearMateriasDesdePensum(carreraRecords['dibujo-construccion'].id, 'Dibujo de Construcción', pensumDibujoConstruccion)
+  await crearMateriasDesdePensum(carreraRecords['costura-industrial'].id, 'Costura Industrial', pensumDibujoConstruccion)
+  await crearMateriasDesdePensum(carreraRecords['electricidad'].id, 'Electricidad', pensumDibujoConstruccion)
+  await crearMateriasDesdePensum(carreraRecords['mecanica-automotriz'].id, 'Mecánica Automotriz', pensumDibujoConstruccion)
 
-  // Crear cursos para Costura Industrial (mismo pensum que Dibujo)
-  for (const anio of [4, 5, 6]) {
-    await prisma.curso.upsert({
-      where: { id: `curso-costura-${anio}` },
-      update: {},
-      create: {
-        id: `curso-costura-${anio}`,
-        nombre: `Costura Industrial - ${anio}° año`,
-        carreraId: carreraRecords['costura-industrial'].id,
-        anio,
-        descripcion: `Cursos correspondientes al ${anio}° año de la carrera de Costura Industrial`,
-        pensum: JSON.stringify(pensumDibujoConstruccion[anio]),
-      },
-    })
-  }
-
-  // Crear cursos para Electricidad (mismo pensum que Dibujo)
-  for (const anio of [4, 5, 6]) {
-    await prisma.curso.upsert({
-      where: { id: `curso-electricidad-${anio}` },
-      update: {},
-      create: {
-        id: `curso-electricidad-${anio}`,
-        nombre: `Electricidad - ${anio}° año`,
-        carreraId: carreraRecords['electricidad'].id,
-        anio,
-        descripcion: `Cursos correspondientes al ${anio}° año de la carrera de Electricidad`,
-        pensum: JSON.stringify(pensumDibujoConstruccion[anio]),
-      },
-    })
-  }
-
-  // Crear cursos para Mecánica Automotriz (mismo pensum que Dibujo)
-  for (const anio of [4, 5, 6]) {
-    await prisma.curso.upsert({
-      where: { id: `curso-mecanica-${anio}` },
-      update: {},
-      create: {
-        id: `curso-mecanica-${anio}`,
-        nombre: `Mecánica Automotriz - ${anio}° año`,
-        carreraId: carreraRecords['mecanica-automotriz'].id,
-        anio,
-        descripcion: `Cursos correspondientes al ${anio}° año de la carrera de Mecánica Automotriz`,
-        pensum: JSON.stringify(pensumDibujoConstruccion[anio]),
-      },
-    })
-  }
-  console.log('✓ 15 cursos creados (5 carreras × 3 años)')
+  const totalMaterias = Object.keys(materiaRecords).length
+  console.log(`✓ ${totalMaterias} materias individuales creadas`)
 
   // ===============================================
   // 4. USUARIOS DEMO
@@ -582,20 +548,30 @@ Instituto Técnico Industrial`,
     },
   })
 
-  // Asignar cursos al docente
-  for (const anio of [4, 5, 6]) {
+  // Asignar al docente algunas materias individuales de 5° Computación
+  // (Análisis de Sistemas, Contabilidad general, Física)
+  const materiasAsignar = [
+    `${carreraRecords['computacion'].id}::5::Análisis de Sistemas`,
+    `${carreraRecords['computacion'].id}::5::Contabilidad general`,
+    `${carreraRecords['computacion'].id}::4::Física`,
+  ]
+  let asigCount = 0
+  for (const clave of materiasAsignar) {
+    const cursoId = materiaRecords[clave]
+    if (!cursoId) continue
     await prisma.cursoAsignado.upsert({
-      where: { id: `asig-computacion-${anio}` },
+      where: { id: `asig-${clave}` },
       update: {},
       create: {
-        id: `asig-computacion-${anio}`,
-        cursoId: `curso-computacion-${anio}`,
+        id: `asig-${clave}`,
+        cursoId,
         docenteId: docente.id,
         anio: 2025,
       },
     })
+    asigCount++
   }
-  console.log(`  ✓ Docente: docente@iti.edu.gt / docente123`)
+  console.log(`  ✓ Docente: docente@iti.edu.gt / docente123 (${asigCount} materias asignadas)`)
 
   // 4.3 Estudiante demo
   const estudiantePass = await bcrypt.hash('estudiante123', 10)
@@ -629,8 +605,15 @@ Instituto Técnico Industrial`,
     },
   })
 
-  // Inscribir al estudiante en cursos de 5to año
-  for (const cursoId of [`curso-computacion-5`, `curso-dibujo-5`, `curso-costura-5`]) {
+  // Inscribir al estudiante en algunas materias individuales de 5° Computación
+  const materiasInscribir = [
+    `${carreraRecords['computacion'].id}::5::Análisis de Sistemas`,
+    `${carreraRecords['computacion'].id}::5::Contabilidad general`,
+    `${carreraRecords['computacion'].id}::5::Álgebra Lineal`,
+  ]
+  for (const clave of materiasInscribir) {
+    const cursoId = materiaRecords[clave]
+    if (!cursoId) continue
     await prisma.inscripcion.upsert({
       where: { id: `insc-${estudiante.id}-${cursoId}` },
       update: {},
@@ -643,19 +626,21 @@ Instituto Técnico Industrial`,
     })
   }
 
-  // Crear horarios para el estudiante
+  // Crear horarios para las materias del estudiante
   const dias = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES']
-  const horarios = [
-    { cursoId: 'curso-computacion-5', horaInicio: '14:00', horaFin: '15:30' },
-    { cursoId: 'curso-dibujo-5', horaInicio: '15:30', horaFin: '17:00' },
-    { cursoId: 'curso-costura-5', horaInicio: '17:00', horaFin: '18:30' },
+  const horariosMaterias = [
+    { clave: `${carreraRecords['computacion'].id}::5::Análisis de Sistemas`, horaInicio: '14:00', horaFin: '15:30' },
+    { clave: `${carreraRecords['computacion'].id}::5::Contabilidad general`, horaInicio: '15:30', horaFin: '17:00' },
+    { clave: `${carreraRecords['computacion'].id}::5::Álgebra Lineal`, horaInicio: '17:00', horaFin: '18:30' },
   ]
 
   for (let d = 0; d < 3; d++) {
-    for (const h of horarios) {
+    for (const h of horariosMaterias) {
+      const cursoId = materiaRecords[h.clave]
+      if (!cursoId) continue
       const horario = await prisma.horario.create({
         data: {
-          cursoId: h.cursoId,
+          cursoId,
           dia: dias[d],
           horaInicio: h.horaInicio,
           horaFin: h.horaFin,
@@ -669,8 +654,10 @@ Instituto Técnico Industrial`,
   }
 
   // Crear calificaciones demo
-  const cursosEstudiante = ['curso-computacion-5', 'curso-dibujo-5', 'curso-costura-5']
-  for (const cursoId of cursosEstudiante) {
+  const cursosEstudianteCalif = materiasInscribir
+    .map(clave => materiaRecords[clave])
+    .filter(Boolean)
+  for (const cursoId of cursosEstudianteCalif) {
     for (const unidad of [1, 2, 3, 4]) {
       await prisma.calificacion.create({
         data: {
@@ -685,11 +672,13 @@ Instituto Técnico Industrial`,
     }
   }
 
-  // Crear tarea demo
-  const tareaDemo = await prisma.tarea.create({
-    data: {
-      titulo: 'Proyecto Final - Programación en BASIC',
-      descripcion: `Desarrollar un programa en lenguaje BASIC que permita gestionar un inventario de productos.
+  // Crear tarea demo (en la primera materia inscrita)
+  const primeraMateriaId = materiaRecords[materiasInscribir[0]]
+  if (primeraMateriaId) {
+    const tareaDemo = await prisma.tarea.create({
+      data: {
+        titulo: 'Proyecto Final - Programación en BASIC',
+        descripcion: `Desarrollar un programa en lenguaje BASIC que permita gestionar un inventario de productos.
 
 Requisitos:
 1. Menú principal con opciones (Agregar, Eliminar, Buscar, Listar, Salir)
@@ -704,24 +693,25 @@ Entregar:
 - Código fuente (.bas)
 - Manual de usuario (PDF)
 - Programa ejecutable`,
-      cursoId: 'curso-computacion-5',
-      docenteId: docente.id,
-      fechaEntrega: new Date('2025-07-25'),
-      punteoMaximo: 100,
-    },
-  })
+        cursoId: primeraMateriaId,
+        docenteId: docente.id,
+        fechaEntrega: new Date('2025-07-25'),
+        punteoMaximo: 100,
+      },
+    })
 
-  // Crear otra tarea
-  await prisma.tarea.create({
-    data: {
-      titulo: 'Ejercicio de Algoritmos',
-      descripcion: 'Resolver los 5 ejercicios del capítulo 3 del libro de algoritmos. Documentar el proceso.',
-      cursoId: 'curso-computacion-5',
-      docenteId: docente.id,
-      fechaEntrega: new Date('2025-07-22'),
-      punteoMaximo: 50,
-    },
-  })
+    // Crear otra tarea
+    await prisma.tarea.create({
+      data: {
+        titulo: 'Ejercicio de Algoritmos',
+        descripcion: 'Resolver los 5 ejercicios del capítulo 3 del libro de algoritmos. Documentar el proceso.',
+        cursoId: primeraMateriaId,
+        docenteId: docente.id,
+        fechaEntrega: new Date('2025-07-22'),
+        punteoMaximo: 50,
+      },
+    })
+  }
 
   console.log(`  ✓ Estudiante: estudiante@iti.edu.gt / estudiante123`)
 

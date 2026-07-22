@@ -43,7 +43,9 @@ export async function setSessionCookie(token: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 días
+    // Cookie de sesión: sin maxAge, se borra al cerrar el navegador.
+    // Así la página SIEMPRE abre en el login y no permanece iniciada
+    // la sesión del administrador entre visitas.
     path: '/',
   })
 }

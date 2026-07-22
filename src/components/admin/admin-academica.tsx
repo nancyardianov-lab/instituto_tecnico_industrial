@@ -54,8 +54,8 @@ function CarrerasTab() {
   useEffect(() => { cargar() }, [])
 
   const subirImagen = async (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'Imagen demasiado grande', description: 'El máximo es 5 MB', variant: 'destructive' })
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: 'Imagen demasiado grande', description: 'El máximo es 2 MB', variant: 'destructive' })
       return
     }
     setSubiendoImagen(true)
@@ -228,7 +228,7 @@ function CarrerasTab() {
                       <div className="flex flex-col items-center gap-1">
                         <Upload className="h-8 w-8 text-primary/60" />
                         <div className="text-sm font-medium">Haz clic para seleccionar una imagen</div>
-                        <div className="text-xs text-muted-foreground">JPG, PNG, WebP, GIF · máx 5 MB</div>
+                        <div className="text-xs text-muted-foreground">JPG, PNG, WebP, GIF · máx 2 MB</div>
                       </div>
                     )}
                   </div>
@@ -446,6 +446,12 @@ function AsignacionesTab() {
     setForm(f => ({ ...f, cursoId, anio: curso ? String(curso.anio) : '' }))
   }
 
+  // Detectar si la materia seleccionada ya tiene un docente asignado
+  const materiaSeleccionada = cursos.find(c => c.id === form.cursoId)
+  const asignacionExistente = materiaSeleccionada
+    ? asignaciones.find(a => a.cursoId === form.cursoId)
+    : null
+
   const crear = async () => {
     if (!form.cursoId || !form.docenteId) {
       toast({ title: 'Error', description: 'Seleccione curso y docente', variant: 'destructive' })
@@ -499,10 +505,10 @@ function AsignacionesTab() {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-base flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-primary" /> Asignación de Cursos a Docentes
+              <UserPlus className="h-5 w-5 text-primary" /> Asignación de Materias a Docentes
             </CardTitle>
             <CardDescription className="text-xs mt-1">
-              Asigne a cada docente qué materia individual impartirá, en qué carrera y en qué año/grado. Ej: Prof. Pérez → Programación → 6° Computación.
+              Asigne a cada docente qué materia individual impartirá, en qué carrera y en qué año/grado. Ej: Prof. Pérez → Programación → 6° Computación. <strong>Una materia solo puede tener un docente asignado.</strong>
             </CardDescription>
           </div>
           <Button size="sm" onClick={() => setOpen(true)} disabled={docentes.length === 0 || cursos.length === 0}>
@@ -515,14 +521,14 @@ function AsignacionesTab() {
           <div className="text-center py-8 bg-muted/20 rounded-md">
             <Users className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">
-              No hay docentes activos todavía. Apruebe solicitudes de docentes desde "Usuarios" para poder asignarles cursos.
+              No hay docentes activos todavía. Apruebe solicitudes de docentes desde "Usuarios" para poder asignarles materias.
             </p>
           </div>
         ) : asignaciones.length === 0 ? (
           <div className="text-center py-8 bg-muted/20 rounded-md">
             <BookOpen className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">
-              Aún no hay asignaciones. Haga clic en "Nueva asignación" para indicar qué cursos/materias impartirá cada docente.
+              Aún no hay asignaciones. Haga clic en "Nueva asignación" para indicar qué materias impartirá cada docente.
             </p>
           </div>
         ) : (
@@ -560,9 +566,9 @@ function AsignacionesTab() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Asignar Curso a Docente</DialogTitle>
+            <DialogTitle>Asignar Materia a Docente</DialogTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Seleccione el docente, luego filtre por carrera y año para encontrar el curso/materia que impartirá.
+              Seleccione el docente, luego filtre por carrera y año para encontrar la materia que impartirá. <strong>Una materia solo puede tener un docente.</strong>
             </p>
           </DialogHeader>
           <div className="space-y-3">
@@ -630,23 +636,35 @@ function AsignacionesTab() {
               <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded text-xs text-blue-800 dark:text-blue-200">
                 <div className="font-medium mb-1">Resumen de la asignación:</div>
                 <div>Docente: <strong>{docentes.find(d => d.id === form.docenteId)?.user.name || '—'}</strong></div>
-                <div>Curso: <strong>{cursos.find(c => c.id === form.cursoId)?.nombre || '—'}</strong></div>
+                <div>Materia: <strong>{cursos.find(c => c.id === form.cursoId)?.nombre || '—'}</strong></div>
                 <div>Carrera: <strong>{cursos.find(c => c.id === form.cursoId)?.carrera.nombre || '—'}</strong></div>
                 <div>Año: <strong>{form.anio}°</strong></div>
               </div>
             )}
 
+            {asignacionExistente && asignacionExistente.docenteId !== form.docenteId && (
+              <div className="bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 p-3 rounded text-xs text-red-800 dark:text-red-200">
+                <div className="font-medium mb-1">⚠ Esta materia ya tiene docente asignado</div>
+                <div>Docente actual: <strong>{asignacionExistente.docente.user.name}</strong></div>
+                <div className="mt-1">Una materia solo puede tener un docente. Para asignarla a otro, primero elimine la asignación actual en la lista de la izquierda.</div>
+              </div>
+            )}
+
             <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded text-xs text-amber-800 dark:text-amber-200">
-              Al asignar el curso, el docente podrá:
+              Al asignar la materia, el docente podrá:
               <ul className="list-disc list-inside mt-1 space-y-0.5">
-                <li>Ver el curso en su panel principal</li>
+                <li>Ver la materia en su panel principal</li>
                 <li>Crear tareas para los estudiantes inscritos</li>
                 <li>Registrar y publicar calificaciones</li>
-                <li>Subir materiales a la biblioteca vinculados al curso</li>
+                <li>Subir materiales a la biblioteca vinculados a la materia</li>
               </ul>
             </div>
-            <Button onClick={crear} className="w-full bg-primary hover:bg-primary/90" disabled={!form.cursoId || !form.docenteId}>
-              <UserPlus className="h-4 w-4 mr-2" /> Asignar curso
+            <Button
+              onClick={crear}
+              className="w-full bg-primary hover:bg-primary/90"
+              disabled={!form.cursoId || !form.docenteId || !!(asignacionExistente && asignacionExistente.docenteId !== form.docenteId)}
+            >
+              <UserPlus className="h-4 w-4 mr-2" /> Asignar materia
             </Button>
           </div>
         </DialogContent>

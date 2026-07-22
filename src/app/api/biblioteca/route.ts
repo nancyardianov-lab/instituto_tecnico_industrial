@@ -85,6 +85,11 @@ export async function POST(req: NextRequest) {
       if (!portadaFile && portadaUrlManual) portada = portadaUrlManual
 
       if (archivoFile && archivoFile.size > 0) {
+        if (archivoFile.size > MAX_ARCHIVO) {
+          return NextResponse.json({
+            error: `El archivo supera el tamaño máximo de ${(MAX_ARCHIVO / (1024 * 1024)).toFixed(0)}MB permitido por el servidor.`,
+          }, { status: 400 })
+        }
         const r = await subirArchivo(archivoFile, 'archivos', ARCHIVOS_PERMITIDOS, MAX_ARCHIVO)
         if (!r.ok) {
           console.error('[biblioteca POST] error subiendo archivo:', r.error)
@@ -94,6 +99,11 @@ export async function POST(req: NextRequest) {
       }
 
       if (portadaFile && portadaFile.size > 0) {
+        if (portadaFile.size > MAX_PORTADA) {
+          return NextResponse.json({
+            error: `La portada supera el tamaño máximo de ${(MAX_PORTADA / (1024 * 1024)).toFixed(0)}MB permitido por el servidor.`,
+          }, { status: 400 })
+        }
         const r = await subirArchivo(portadaFile, 'portadas', PORTADAS_PERMITIDAS, MAX_PORTADA)
         if (!r.ok) {
           console.error('[biblioteca POST] error subiendo portada:', r.error)

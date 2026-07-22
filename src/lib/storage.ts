@@ -197,5 +197,11 @@ export const PORTADAS_PERMITIDAS: Record<string, string> = {
   'image/gif': 'gif',
 }
 
-export const MAX_ARCHIVO = 50 * 1024 * 1024 // 50 MB
-export const MAX_PORTADA = 5 * 1024 * 1024  // 5 MB
+// IMPORTANTE: Netlify Functions tienen un límite duro de ~6 MB en el body
+// de la petición. Si se sube un archivo más grande, la función falla con
+// 500/413 antes de que nuestro código siquiera se ejecute. Por eso bajamos
+// el límite a 5 MB (con margen para el resto del multipart).
+// Para archivos más grandes, se debe usar subida directa a Netlify Blobs
+// desde el cliente con URL firmada (no implementado todavía).
+export const MAX_ARCHIVO = 5 * 1024 * 1024 // 5 MB (límite Netlify-safe)
+export const MAX_PORTADA = 2 * 1024 * 1024 // 2 MB

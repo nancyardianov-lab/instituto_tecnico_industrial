@@ -146,7 +146,7 @@ export function LoginView() {
                   id="email"
                   name="email"
                   type="email"
-                  autoComplete="username"
+                  autoComplete="off"
                   value={loginForm.email}
                   onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                   placeholder="correo@iti.edu.gt"
@@ -159,10 +159,16 @@ export function LoginView() {
                   id="password"
                   name="password"
                   type="password"
-                  autoComplete="new-password"
+                  autoComplete="off"
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                   placeholder="••••••••"
+                  // Atributos adicionales para evitar que el navegador
+                  // autocompleta con contraseñas guardadas. Combinación de
+                  // readOnly on-mount + onFocus remove + autoCorrect/CC fields
+                  // es la forma más confiable de mantener el campo vacío.
+                  readOnly
+                  onFocus={(e) => e.target.removeAttribute('readOnly')}
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                 />
               </div>

@@ -30,7 +30,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ asignaciones })
 }
 
-// POST - asignar un curso a un docente
+// POST - asignar una materia individual a un docente
+// REGLA: solo UN docente por materia. Si la materia ya tiene docente
+// asignado, se devuelve error indicando qué docente lo tiene.
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || session.role !== UserRole.ADMIN) {
@@ -52,7 +54,18 @@ export async function POST(req: NextRequest) {
     const docente = await db.docente.findUnique({ where: { id: docenteId } })
     if (!docente) return NextResponse.json({ error: 'Docente no encontrado' }, { status: 404 })
 
-    // Crear asignación (si ya existe, @unique evita duplicados y lanza error)
+    // Verificar si la materia ya tiene un docente asignado (regla: 1 docente por materia)
+    const existente = await db.cursoAsignado.findFirst({
+      where: { cursoId },
+      include: { docente: { include: { user: { select: { name: true } } } } },
+    })
+    if (existente && existente.docenteId !== docenteId) {
+      return NextResponse.json({
+        error: `Esta materia ya está asignada a "${existente.docente.user.name}". Una materia solo puede tener un docente. Elimine la asignación anterior antes de asignarla a otro docente.`,
+      }, { status: 400 })
+    }
+
+    // Crear asignación (si ya existe exactamente igual, @unique evita duplicados)
     try {
       const asignacion = await db.cursoAsignado.create({
         data: { cursoId, docenteId, anio: parseInt(anio) },
@@ -61,7 +74,7 @@ export async function POST(req: NextRequest) {
     } catch (e: any) {
       if (e?.code === 'P2002') {
         return NextResponse.json({
-          error: 'Este curso ya está asignado a este docente en el año indicado',
+          error: 'Esta materia ya está asignada a este docente en el año indicado',
         }, { status: 400 })
       }
       throw e

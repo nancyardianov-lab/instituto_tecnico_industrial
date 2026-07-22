@@ -67,6 +67,26 @@ export function AdminNotificaciones() {
         <p className="text-muted-foreground text-sm">Publicar avisos generales para todos los usuarios.</p>
       </div>
 
+      {/* Aclaración: dónde ven las notificaciones los usuarios */}
+      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm text-blue-900 dark:text-blue-100">
+        <div className="flex items-start gap-2">
+          <Bell className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div className="space-y-1">
+            <div className="font-medium">¿Dónde ven las notificaciones los usuarios?</div>
+            <p className="text-xs leading-relaxed">
+              Cuando un usuario (docente o estudiante) inicia sesión, verá una <strong>campana de notificaciones</strong>{' '}
+              en la esquina superior derecha de la pantalla, junto a su avatar. Al hacer clic en la campana,
+              se despliega la lista de notificaciones. Las no leídas aparecen con un punto azul y un contador
+              rojo en el ícono. La campana se actualiza automáticamente cada 30 segundos.
+            </p>
+            <p className="text-xs leading-relaxed">
+              <strong>Importante:</strong> Las notificaciones SOLO las ven los usuarios que han iniciado sesión.
+              Si un usuario no ve notificaciones, debe iniciar sesión primero con su correo y contraseña.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid md:grid-cols-2 gap-4">
         <Card className="iti-card">
           <CardHeader>

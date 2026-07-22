@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (file.size > MAX_PORTADA) {
-      return NextResponse.json({ error: 'La imagen supera el tamaño máximo de 5MB' }, { status: 400 })
+      return NextResponse.json({ error: `La imagen supera el tamaño máximo de ${(MAX_PORTADA / (1024 * 1024)).toFixed(0)}MB` }, { status: 400 })
     }
 
     const r = await subirArchivo(file, 'portadas', PORTADAS_PERMITIDAS, MAX_PORTADA)
