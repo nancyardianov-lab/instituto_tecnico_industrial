@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Check, X, Clock, FileCheck, FileX, AlertTriangle, Calendar, Mail } from 'lucide-react'
+import { Check, X, Clock, FileCheck, FileX, AlertTriangle, Calendar, Mail, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 const STATUS_INFO: Record<string, any> = {
@@ -39,6 +39,22 @@ export function AdminPreinscripciones() {
   }
 
   useEffect(() => { cargar() }, [status])
+
+  const eliminar = async (id: string, nombre: string) => {
+    if (!confirm(`¿Eliminar la preinscripción de "${nombre}"?\n\nEsta acción no se puede deshacer. Si la preinscripción ya tenía un usuario creado, ese usuario seguirá existiendo y deberá eliminarse desde Gestión de Usuarios.`)) return
+    try {
+      const res = await fetch(`/api/preinscripciones/${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.ok) {
+        toast({ title: 'Preinscripción eliminada' })
+        cargar()
+      } else {
+        toast({ title: 'Error', description: data.error || data.detalle || 'No se pudo eliminar', variant: 'destructive' })
+      }
+    } catch (e: any) {
+      toast({ title: 'Error de red', description: e?.message || 'No se pudo conectar', variant: 'destructive' })
+    }
+  }
 
   const cambiarEstado = async (id: string, newStatus: string) => {
     const res = await fetch(`/api/preinscripciones/${id}`, {
@@ -118,9 +134,14 @@ export function AdminPreinscripciones() {
                     <div><strong>Solicitud:</strong> {new Date(p.createdAt).toLocaleDateString('es-GT')}</div>
                   </div>
 
-                  <Button size="sm" variant="outline" className="w-full" onClick={() => { setSel(p); setNotas(p.notasRevision || '') }}>
-                    Revisar
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => { setSel(p); setNotas(p.notasRevision || '') }}>
+                      Revisar
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => eliminar(p.id, p.estudianteNombre)} title="Eliminar">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )

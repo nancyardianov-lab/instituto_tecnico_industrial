@@ -86,13 +86,19 @@ export async function POST(req: NextRequest) {
 
       if (archivoFile && archivoFile.size > 0) {
         const r = await subirArchivo(archivoFile, 'archivos', ARCHIVOS_PERMITIDOS, MAX_ARCHIVO)
-        if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 })
+        if (!r.ok) {
+          console.error('[biblioteca POST] error subiendo archivo:', r.error)
+          return NextResponse.json({ error: `No se pudo subir el archivo: ${r.error}` }, { status: 400 })
+        }
         archivoUrl = r.url
       }
 
       if (portadaFile && portadaFile.size > 0) {
         const r = await subirArchivo(portadaFile, 'portadas', PORTADAS_PERMITIDAS, MAX_PORTADA)
-        if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 })
+        if (!r.ok) {
+          console.error('[biblioteca POST] error subiendo portada:', r.error)
+          return NextResponse.json({ error: `No se pudo subir la portada: ${r.error}` }, { status: 400 })
+        }
         portada = r.url
       }
     } else {

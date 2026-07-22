@@ -161,3 +161,49 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
   }
 }
+
+// DELETE - eliminar una preinscripción del sistema
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await getSession()
+    if (!session || session.role !== UserRole.ADMIN) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+
+    const { id } = await params
+    const preinscripcion = await db.preinscripcion.findUnique({
+      where: { id },
+      select: { estudianteNombre: true, estudianteEmail: true, userId: true },
+    })
+    if (!preinscripcion) {
+      return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+    }
+
+    // Si la preinscripción tiene un usuario vinculado, no permitir borrar
+    // sin antes advertir (el admin debe borrar el usuario por separado si lo desea)
+    await db.preinscripcion.delete({ where: { id } })
+
+    // Log de auditoría
+    try {
+      await db.auditLog.create({
+        data: {
+          userId: session.userId,
+          accion: 'PREINSCRIPCION_ELIMINADA',
+          modulo: 'PREINSCRIPCIONES',
+          descripcion: `Preinscripción eliminada: ${preinscripcion.estudianteNombre} (${preinscripcion.estudianteEmail})`,
+          metadata: JSON.stringify({ preinscripcionId: id }),
+        },
+      })
+    } catch (logErr) {
+      console.error('[preinscripciones DELETE] Error guardando log:', logErr)
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch (e: any) {
+    console.error('[preinscripciones DELETE] Error:', e?.message || e)
+    return NextResponse.json({ error: 'Error del servidor', detalle: e?.message }, { status: 500 })
+  }
+}

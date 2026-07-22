@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuthStore, useRouterStore } from '@/lib/store'
 import {
   LayoutDashboard, User, BookOpen, ClipboardList, Award, Library,
-  Calendar, Clock, Users, ChevronRight
+  Calendar, Clock, Users, ChevronRight, Bell
 } from 'lucide-react'
 import { DocenteCursos } from './docente-cursos'
 import { DocenteTareas } from './docente-tareas'
@@ -16,6 +16,7 @@ import { DocenteNotas } from './docente-notas'
 import { DocenteBiblioteca } from './docente-biblioteca'
 import { DocenteHorario } from './docente-horario'
 import { EstudiantePerfil as DocentePerfil } from '../estudiante/estudiante-perfil'
+import { NotificacionesBell } from '../shared/notificaciones-bell'
 
 const NAV = [
   { key: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
@@ -59,9 +60,9 @@ export function DocenteLayout() {
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col md:flex-row">
       <aside className="md:w-64 md:border-r md:bg-muted/30 border-b md:border-b-0 flex-shrink-0">
-        <div className="p-4 border-b md:border-b">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
+        <div className="p-4 border-b md:border-b flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <Avatar className="h-10 w-10 flex-shrink-0">
               <AvatarImage src={user.foto || ''} />
               <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -71,6 +72,7 @@ export function DocenteLayout() {
               <Badge className="text-[10px] mt-0.5 bg-accent/15 text-accent-foreground">Docente</Badge>
             </div>
           </div>
+          <NotificacionesBell />
         </div>
         <nav className="p-2 flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
           {NAV.map((n) => (
@@ -236,6 +238,46 @@ function DocenteDashboard({ data, loading, navigate }: any) {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Avisos y notificaciones */}
+      <DocenteNotificacionesPanel />
     </div>
+  )
+}
+
+function DocenteNotificacionesPanel() {
+  const [notifs, setNotifs] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/notificaciones').then(r => r.json()).then(d => setNotifs(d.notificaciones || []))
+  }, [])
+
+  return (
+    <Card className="iti-card">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Bell className="h-5 w-5 text-primary" /> Avisos y Notificaciones
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {notifs.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">No hay notificaciones.</p>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+            {notifs.slice(0, 8).map((n: any) => (
+              <div key={n.id} className="p-3 rounded-md bg-muted/30 border-l-2 border-primary">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="font-medium text-sm">{n.titulo}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(n.fechaPublicacion).toLocaleDateString('es-GT')}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">{n.mensaje}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

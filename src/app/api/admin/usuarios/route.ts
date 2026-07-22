@@ -242,3 +242,65 @@ Administración - Instituto Técnico Industrial`
     }, { status: 500 })
   }
 }
+
+// DELETE - eliminar un usuario del sistema
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session || session.role !== UserRole.ADMIN) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const userId = searchParams.get('userId')
+
+    if (!userId) {
+      return NextResponse.json({ error: 'userId es requerido' }, { status: 400 })
+    }
+
+    if (userId === session.userId) {
+      return NextResponse.json({ error: 'No puedes eliminar tu propia cuenta' }, { status: 400 })
+    }
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      include: { docente: true, estudiante: true },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+    }
+
+    // Guardar info para el log antes de borrar
+    const userName = user.name
+    const userEmail = user.email
+    const userRole = user.role
+
+    // Eliminar el usuario - las relaciones con onDelete: Cascade se borran solas
+    // (estudiante, docente, notificaciones, favoritos, auditLogs relacionados)
+    await db.user.delete({ where: { id: userId } })
+
+    // Log de auditoría
+    try {
+      await db.auditLog.create({
+        data: {
+          userId: session.userId,
+          accion: 'USUARIO_ELIMINADO',
+          modulo: 'USUARIOS',
+          descripcion: `Usuario eliminado: ${userName} (${userEmail}) - Rol: ${userRole}`,
+          metadata: JSON.stringify({ deletedUserId: userId, deletedUserName: userName, deletedUserEmail: userEmail, deletedUserRole: userRole }),
+        },
+      })
+    } catch (logErr) {
+      console.error('[admin/usuarios DELETE] Error guardando log:', logErr)
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch (e: any) {
+    console.error('[admin/usuarios DELETE] Error:', e?.message || e, e?.stack)
+    return NextResponse.json({
+      error: 'Error del servidor',
+      detalle: e?.message || 'Error desconocido',
+    }, { status: 500 })
+  }
+}

@@ -17,6 +17,7 @@ import { EstudianteBiblioteca } from './estudiante-biblioteca'
 import { EstudianteTareas } from './estudiante-tareas'
 import { EstudianteHorario } from './estudiante-horario'
 import { EstudiantePerfil } from './estudiante-perfil'
+import { NotificacionesBell } from '../shared/notificaciones-bell'
 
 const NAV = [
   { key: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
@@ -74,9 +75,9 @@ export function EstudianteLayout() {
     <div className="min-h-[calc(100vh-4rem)] flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="md:w-64 md:border-r md:bg-muted/30 border-b md:border-b-0 flex-shrink-0">
-        <div className="p-4 border-b md:border-b">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
+        <div className="p-4 border-b md:border-b flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <Avatar className="h-10 w-10 flex-shrink-0">
               <AvatarImage src={user.foto || ''} />
               <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -86,6 +87,7 @@ export function EstudianteLayout() {
               <Badge className="text-[10px] mt-0.5 bg-primary/10 text-primary">Estudiante</Badge>
             </div>
           </div>
+          <NotificacionesBell />
         </div>
         <nav className="p-2 flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
           {NAV.map((n) => (

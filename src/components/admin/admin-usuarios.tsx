@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Search, Check, X, Lock, Unlock, Key, UserCheck, UserX, Filter, Mail } from 'lucide-react'
+import { Search, Check, X, Lock, Unlock, Key, UserCheck, UserX, Filter, Mail, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 export function AdminUsuarios() {
@@ -83,6 +83,22 @@ export function AdminUsuarios() {
     { key: 'activar', label: 'Activar', icon: Unlock, color: 'bg-green-500', needsNotes: false },
     { key: 'restablecer_password', label: 'Restablecer contraseña', icon: Key, color: 'bg-amber-500', needsNotes: false },
   ]
+
+  const eliminarUsuario = async (u: any) => {
+    if (!confirm(`¿Eliminar definitivamente al usuario "${u.name}" (${u.email})?\n\nEsta acción NO se puede deshacer. Se borrarán:\n- Su cuenta y datos asociados\n- Sus calificaciones, tareas, entregas\n- Sus libros subidos a la biblioteca\n- Sus comentarios y favoritos`)) return
+    try {
+      const res = await fetch(`/api/admin/usuarios?userId=${u.id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.ok) {
+        toast({ title: 'Usuario eliminado', description: `${u.name} fue eliminado del sistema` })
+        cargar()
+      } else {
+        toast({ title: 'Error', description: data.error || data.detalle || 'No se pudo eliminar', variant: 'destructive' })
+      }
+    } catch (e: any) {
+      toast({ title: 'Error de red', description: e?.message || 'No se pudo conectar', variant: 'destructive' })
+    }
+  }
 
   return (
     <div className="space-y-4 animate-fadeIn">
@@ -218,6 +234,11 @@ export function AdminUsuarios() {
                           <Button size="sm" variant="ghost" className="h-7 text-amber-600 hover:bg-amber-50"
                             onClick={() => setModal({ user: u, action: 'restablecer_password' })}>
                             <Key className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-red-600 hover:bg-red-50"
+                            onClick={() => eliminarUsuario(u)}
+                            title="Eliminar usuario">
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
                       </td>

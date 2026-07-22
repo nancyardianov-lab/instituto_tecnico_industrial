@@ -69,8 +69,19 @@ export async function PATCH(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-  const { notificacionId } = await req.json()
-  
+  const body = await req.json()
+  const { notificacionId, accion } = body
+
+  // Si es admin y accion=eliminar, borrar la notificación completa
+  if (accion === 'eliminar' && session.role === 'ADMIN') {
+    try {
+      await db.notificacion.delete({ where: { id: notificacionId } })
+      return NextResponse.json({ ok: true })
+    } catch (e: any) {
+      return NextResponse.json({ error: 'No se pudo eliminar' }, { status: 500 })
+    }
+  }
+
   // Marcar como leída
   const existing = await db.notificacionUsuario.findUnique({
     where: { notificacionId_userId: { notificacionId, userId: session.userId } },

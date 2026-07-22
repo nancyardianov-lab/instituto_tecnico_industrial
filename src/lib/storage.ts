@@ -1,11 +1,7 @@
 // Utilidad para almacenamiento de archivos:
+// - En Netlify (producción): usa Netlify Blobs (almacenamiento persistente nativo)
+// - En Vercel: usa Vercel Blob (si BLOB_READ_WRITE_TOKEN está configurado)
 // - En desarrollo local: guarda en /public/uploads (sistema de archivos)
-// - En producción (Vercel): usa Vercel Blob
-//
-// Para usar Vercel Blob en producción, configurar:
-//   BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxxxx
-//
-// Si no está configurado el token, intenta usar sistema de archivos local.
 import { writeFile, mkdir, unlink } from 'fs/promises'
 import path from 'path'
 import { randomBytes } from 'crypto'
@@ -15,9 +11,23 @@ type UploadResult = { ok: true; url: string } | { ok: false; error: string }
 const UPLOAD_ARCHIVOS_DIR = path.join(process.cwd(), 'public', 'uploads', 'biblioteca', 'archivos')
 const UPLOAD_PORTADAS_DIR = path.join(process.cwd(), 'public', 'uploads', 'biblioteca', 'portadas')
 
-// Detecta si estamos en producción con Vercel Blob configurado
+// Detecta si estamos en Netlify con Blobs disponible
+async function getNetlifyBlobStore(tipo: 'archivos' | 'portadas') {
+  try {
+    const { getStore } = await import('@netlify/blobs')
+    return getStore(`biblioteca-${tipo}`)
+  } catch (e) {
+    return null
+  }
+}
+
 function useVercelBlob(): boolean {
   return !!process.env.BLOB_READ_WRITE_TOKEN
+}
+
+// Detecta si estamos en entorno Netlify (producción)
+function isNetlify(): boolean {
+  return !!(process.env.NETLIFY || process.env.NETLIFY_LOCAL)
 }
 
 function sanitizeNombre(nombre: string): string {
@@ -65,7 +75,25 @@ export async function subirArchivo(
   const baseName = sanitizeNombre(file.name).replace(/\.[^.]+$/, '')
   const nombreSeguro = `${prefijo}_${baseName}.${ext}`
 
-  // ====== Producción: Vercel Blob ======
+  // ====== Netlify Blobs (producción en Netlify) ======
+  if (isNetlify()) {
+    const store = await getNetlifyBlobStore(tipo)
+    if (store) {
+      try {
+        const buffer = Buffer.from(await file.arrayBuffer())
+        await store.set(nombreSeguro, buffer)
+        // URL pública vía API route que sirve el blob
+        const url = `/api/blob/${tipo}/${nombreSeguro}`
+        return { ok: true, url }
+      } catch (e: any) {
+        console.error('[netlify-blob] error subiendo:', e?.message || e)
+        return { ok: false, error: 'Error al subir archivo a Netlify Blobs: ' + (e?.message || 'desconocido') }
+      }
+    }
+    // Si no hay store disponible, intentar Vercel Blob o FS
+  }
+
+  // ====== Vercel Blob ======
   if (useVercelBlob()) {
     try {
       const { put } = await import('@vercel/blob')
@@ -96,6 +124,22 @@ export async function subirArchivo(
  */
 export async function eliminarArchivo(url?: string | null): Promise<void> {
   if (!url) return
+
+  // Netlify Blobs: las URLs empiezan con /api/blob/
+  if (url.startsWith('/api/blob/')) {
+    const partes = url.split('/')
+    const tipo = partes[3] as 'archivos' | 'portadas'
+    const nombre = partes[4]
+    if (tipo && nombre) {
+      try {
+        const store = await getNetlifyBlobStore(tipo)
+        if (store) await store.delete(nombre)
+      } catch (e) {
+        console.error('[netlify-blob] error eliminando:', e)
+      }
+    }
+    return
+  }
 
   // Vercel Blob: las URLs empiezan con https://
   if (url.startsWith('https://') && useVercelBlob()) {

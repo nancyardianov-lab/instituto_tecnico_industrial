@@ -19,6 +19,7 @@ import { AdminBiblioteca } from './admin-biblioteca'
 import { AdminNotificaciones } from './admin-notificaciones'
 import { AdminCorreo } from './admin-correo'
 import { EstudiantePerfil as AdminPerfil } from '../estudiante/estudiante-perfil'
+import { NotificacionesBell } from '../shared/notificaciones-bell'
 
 const NAV = [
   { key: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
@@ -65,9 +66,9 @@ export function AdminLayout() {
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col md:flex-row">
       <aside className="md:w-64 md:border-r md:bg-muted/30 border-b md:border-b-0 flex-shrink-0">
-        <div className="p-4 border-b md:border-b">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
+        <div className="p-4 border-b md:border-b flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <Avatar className="h-10 w-10 flex-shrink-0">
               <AvatarImage src={user.foto || ''} />
               <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -77,6 +78,7 @@ export function AdminLayout() {
               <Badge className="text-[10px] mt-0.5 bg-primary text-primary-foreground">Administrador</Badge>
             </div>
           </div>
+          <NotificacionesBell />
         </div>
         <nav className="p-2 flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
           {NAV.map((n) => (

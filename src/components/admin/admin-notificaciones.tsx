@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Bell, Send } from 'lucide-react'
+import { Bell, Send, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 export function AdminNotificaciones() {
@@ -39,6 +39,24 @@ export function AdminNotificaciones() {
       toast({ title: 'Notificación publicada', description: form.esGlobal ? 'Enviada a todos los usuarios' : 'Enviada a destinatarios seleccionados' })
       setForm({ titulo: '', mensaje: '', tipo: 'GENERAL', esGlobal: true })
       cargar()
+    } else {
+      toast({ title: 'Error', description: data.error || 'No se pudo publicar', variant: 'destructive' })
+    }
+  }
+
+  const eliminar = async (id: string, titulo: string) => {
+    if (!confirm(`¿Eliminar la notificación "${titulo}"?\n\nSe borrará para todos los usuarios.`)) return
+    const res = await fetch('/api/notificaciones', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notificacionId: id, accion: 'eliminar' }),
+    })
+    const data = await res.json()
+    if (data.ok) {
+      toast({ title: 'Notificación eliminada' })
+      cargar()
+    } else {
+      toast({ title: 'Error', description: data.error || 'No se pudo eliminar', variant: 'destructive' })
     }
   }
 
@@ -101,10 +119,19 @@ export function AdminNotificaciones() {
                 <p className="text-sm text-muted-foreground text-center py-4">No hay notificaciones.</p>
               ) : (
                 notifs.map((n) => (
-                  <div key={n.id} className="p-3 rounded-md bg-muted/30 border-l-2 border-primary">
+                  <div key={n.id} className="p-3 rounded-md bg-muted/30 border-l-2 border-primary group">
                     <div className="flex items-center justify-between mb-1">
-                      <div className="font-medium text-sm">{n.titulo}</div>
-                      {n.esGlobal && <Badge className="text-[10px] bg-primary/15 text-primary">Global</Badge>}
+                      <div className="font-medium text-sm flex-1">{n.titulo}</div>
+                      <div className="flex items-center gap-2">
+                        {n.esGlobal && <Badge className="text-[10px] bg-primary/15 text-primary">Global</Badge>}
+                        <button
+                          onClick={() => eliminar(n.id, n.titulo)}
+                          className="opacity-0 group-hover:opacity-100 transition text-destructive hover:bg-destructive/10 rounded p-1"
+                          title="Eliminar notificación"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground">{n.mensaje}</p>
                     <div className="text-[10px] text-muted-foreground mt-1">

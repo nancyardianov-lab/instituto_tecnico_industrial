@@ -144,7 +144,9 @@ export function LoginView() {
                 <Label htmlFor="email">Correo electrónico</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
+                  autoComplete="username"
                   value={loginForm.email}
                   onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                   placeholder="correo@iti.edu.gt"
@@ -155,7 +157,9 @@ export function LoginView() {
                 <Label htmlFor="password">Contraseña</Label>
                 <Input
                   id="password"
+                  name="password"
                   type="password"
+                  autoComplete="current-password"
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                   placeholder="••••••••"
