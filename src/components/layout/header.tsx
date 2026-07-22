@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useTheme } from 'next-themes'
 import { useAuthStore, useRouterStore } from '@/lib/store'
 import { Badge } from '@/components/ui/badge'
+import { NotificacionesBell } from '../shared/notificaciones-bell'
 
 const PUBLIC_NAV = [
   { label: 'Inicio', path: '/' },
@@ -86,6 +87,8 @@ export function Header() {
                 {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
             )}
+
+            {user && <NotificacionesBell />}
 
             {user ? (
               <DropdownMenu>

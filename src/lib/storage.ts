@@ -15,8 +15,10 @@ const UPLOAD_PORTADAS_DIR = path.join(process.cwd(), 'public', 'uploads', 'bibli
 async function getNetlifyBlobStore(tipo: 'archivos' | 'portadas') {
   try {
     const { getStore } = await import('@netlify/blobs')
-    return getStore(`biblioteca-${tipo}`)
-  } catch (e) {
+    const store = getStore(`biblioteca-${tipo}`)
+    return store
+  } catch (e: any) {
+    console.error('[storage] No se pudo obtener Netlify Blob store:', e?.message || e)
     return null
   }
 }
@@ -90,7 +92,16 @@ export async function subirArchivo(
         return { ok: false, error: 'Error al subir archivo a Netlify Blobs: ' + (e?.message || 'desconocido') }
       }
     }
-    // Si no hay store disponible, intentar Vercel Blob o FS
+    // Si estamos en Netlify pero no hay store de Blobs disponible,
+    // NO intentar escribir al sistema de archivos (es de solo lectura en producción).
+    // Caer al fallback de Vercel Blob si está configurado, o dar error claro.
+    if (!useVercelBlob()) {
+      console.error('[storage] Netlify detectado pero Blobs no disponible. Configure Netlify Blobs en el dashboard.')
+      return {
+        ok: false,
+        error: 'El almacenamiento de archivos no está configurado en el servidor (Netlify Blobs no disponible). Contacte al administrador.',
+      }
+    }
   }
 
   // ====== Vercel Blob ======
@@ -109,13 +120,18 @@ export async function subirArchivo(
   }
 
   // ====== Desarrollo: sistema de archivos local ======
-  const destinoDir = tipo === 'portadas' ? UPLOAD_PORTADAS_DIR : UPLOAD_ARCHIVOS_DIR
-  await mkdir(destinoDir, { recursive: true })
-  const rutaCompleta = path.join(destinoDir, nombreSeguro)
-  const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(rutaCompleta, buffer)
-  const rutaPublica = `/uploads/biblioteca/${tipo}/${nombreSeguro}`
-  return { ok: true, url: rutaPublica }
+  try {
+    const destinoDir = tipo === 'portadas' ? UPLOAD_PORTADAS_DIR : UPLOAD_ARCHIVOS_DIR
+    await mkdir(destinoDir, { recursive: true })
+    const rutaCompleta = path.join(destinoDir, nombreSeguro)
+    const buffer = Buffer.from(await file.arrayBuffer())
+    await writeFile(rutaCompleta, buffer)
+    const rutaPublica = `/uploads/biblioteca/${tipo}/${nombreSeguro}`
+    return { ok: true, url: rutaPublica }
+  } catch (e: any) {
+    console.error('[storage] error escribiendo archivo local:', e?.message || e)
+    return { ok: false, error: 'No se pudo guardar el archivo en el servidor: ' + (e?.message || 'error desconocido') }
+  }
 }
 
 /**

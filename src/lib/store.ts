@@ -1,7 +1,6 @@
 'use client'
 
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 
 interface User {
   id: string
@@ -29,33 +28,25 @@ interface AuthState {
   fetchUser: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      loading: true,
-      setUser: (user) => set({ user }),
-      setLoading: (loading) => set({ loading }),
-      logout: () => {
-        fetch('/api/auth/logout', { method: 'POST' })
-        set({ user: null })
-      },
-      fetchUser: async () => {
-        try {
-          const res = await fetch('/api/auth/me')
-          const data = await res.json()
-          set({ user: data.user, loading: false })
-        } catch {
-          set({ user: null, loading: false })
-        }
-      },
-    }),
-    {
-      name: 'iti-auth',
-      partialize: (state) => ({ user: state.user }),
+export const useAuthStore = create<AuthState>()((set, get) => ({
+  user: null,
+  loading: true,
+  setUser: (user) => set({ user }),
+  setLoading: (loading) => set({ loading }),
+  logout: () => {
+    fetch('/api/auth/logout', { method: 'POST' })
+    set({ user: null })
+  },
+  fetchUser: async () => {
+    try {
+      const res = await fetch('/api/auth/me')
+      const data = await res.json()
+      set({ user: data.user, loading: false })
+    } catch {
+      set({ user: null, loading: false })
     }
-  )
-)
+  },
+}))
 
 // Hash router store
 interface RouterState {

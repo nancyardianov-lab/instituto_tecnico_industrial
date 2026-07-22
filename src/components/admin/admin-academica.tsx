@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus, FolderTree, BookOpen, Users, Edit, Trash2, Calendar, UserPlus, Clock, MapPin } from 'lucide-react'
+import { Plus, FolderTree, BookOpen, Users, Edit, Trash2, Calendar, UserPlus, Clock, MapPin, Upload, Image as ImageIcon, X, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 export function AdminAcademica() {
@@ -41,6 +41,8 @@ function CarrerasTab() {
   const [carreras, setCarreras] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [edit, setEdit] = useState<any>(null)
+  const [subiendoImagen, setSubiendoImagen] = useState(false)
+  const imagenInputRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
     nombre: '', slug: '', descripcion: '', objetivo: '', perfilEgresado: '', campoLaboral: '',
     duracion: '3 años', imagen: '', galeria: '[]', activa: true,
@@ -50,6 +52,30 @@ function CarrerasTab() {
     fetch('/api/admin/carreras').then(r => r.json()).then(d => setCarreras(d.carreras || []))
   }
   useEffect(() => { cargar() }, [])
+
+  const subirImagen = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Imagen demasiado grande', description: 'El máximo es 5 MB', variant: 'destructive' })
+      return
+    }
+    setSubiendoImagen(true)
+    try {
+      const fd = new FormData()
+      fd.append('imagen', file)
+      const res = await fetch('/api/admin/upload-imagen', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.ok) {
+        setForm(f => ({ ...f, imagen: data.url }))
+        toast({ title: 'Imagen subida' })
+      } else {
+        toast({ title: 'Error', description: data.error || 'No se pudo subir la imagen', variant: 'destructive' })
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e?.message || 'Error inesperado', variant: 'destructive' })
+    } finally {
+      setSubiendoImagen(false)
+    }
+  }
 
   const guardar = async () => {
     if (!form.nombre || !form.slug) {
@@ -153,14 +179,60 @@ function CarrerasTab() {
               <Label>Campo laboral</Label>
               <Textarea rows={2} value={form.campoLaboral} onChange={(e) => setForm({ ...form, campoLaboral: e.target.value })} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Duración</Label>
-                <Input value={form.duracion} onChange={(e) => setForm({ ...form, duracion: e.target.value })} />
-              </div>
-              <div>
-                <Label>Imagen (URL)</Label>
-                <Input value={form.imagen} onChange={(e) => setForm({ ...form, imagen: e.target.value })} />
+            <div>
+              <Label>Duración</Label>
+              <Input value={form.duracion} onChange={(e) => setForm({ ...form, duracion: e.target.value })} />
+            </div>
+            {/* Imagen de la carrera - subida desde dispositivo */}
+            <div>
+              <Label>Imagen de la carrera <span className="text-muted-foreground font-normal">(sube desde tu dispositivo)</span></Label>
+              <div className="space-y-2">
+                <input
+                  ref={imagenInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) subirImagen(f)
+                  }}
+                />
+                {form.imagen ? (
+                  <div className="space-y-2">
+                    <div className="relative inline-block">
+                      <img src={form.imagen} alt="Vista previa" className="h-32 w-full max-w-xs object-cover rounded-lg border" />
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, imagen: '' }))}
+                        className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 hover:bg-destructive/80"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => imagenInputRef.current?.click()} disabled={subiendoImagen}>
+                      {subiendoImagen ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <ImageIcon className="h-3 w-3 mr-1" />}
+                      Cambiar imagen
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => imagenInputRef.current?.click()}
+                    className="border-2 border-dashed border-primary/30 rounded-lg p-6 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
+                  >
+                    {subiendoImagen ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                        <span className="text-sm">Subiendo imagen...</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <Upload className="h-8 w-8 text-primary/60" />
+                        <div className="text-sm font-medium">Haz clic para seleccionar una imagen</div>
+                        <div className="text-xs text-muted-foreground">JPG, PNG, WebP, GIF · máx 5 MB</div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div>
@@ -180,6 +252,7 @@ function CursosTab() {
   const [cursos, setCursos] = useState<any[]>([])
   const [carreras, setCarreras] = useState<any[]>([])
   const [open, setOpen] = useState(false)
+  const [filtroCarrera, setFiltroCarrera] = useState('TODOS')
   const [form, setForm] = useState({ nombre: '', carreraId: '', anio: '4', descripcion: '', pensum: '[]' })
 
   const cargar = () => {
@@ -200,70 +273,117 @@ function CursosTab() {
     })
     const data = await res.json()
     if (data.ok) {
-      toast({ title: 'Curso creado' })
+      toast({ title: 'Curso creado', description: `"${form.nombre}" agregado correctamente` })
       setOpen(false)
       setForm({ nombre: '', carreraId: '', anio: '4', descripcion: '', pensum: '[]' })
       cargar()
     }
   }
 
-  const eliminar = async (id: string) => {
-    if (!confirm('¿Eliminar este curso? Se borrarán también sus horarios, tareas y calificaciones asociadas.')) return
+  const eliminar = async (id: string, nombre: string) => {
+    if (!confirm(`¿Eliminar el curso "${nombre}"? Se borrarán también sus horarios, tareas y calificaciones asociadas.`)) return
     await fetch(`/api/admin/cursos/${id}`, { method: 'DELETE' })
     toast({ title: 'Curso eliminado' })
     cargar()
   }
 
+  const cursosFiltrados = filtroCarrera === 'TODOS'
+    ? cursos
+    : cursos.filter(c => c.carreraId === filtroCarrera)
+
+  // Agrupar por carrera
+  const porCarrera: Record<string, any[]> = {}
+  cursosFiltrados.forEach(c => {
+    const key = c.carrera?.nombre || 'Sin carrera'
+    if (!porCarrera[key]) porCarrera[key] = []
+    porCarrera[key].push(c)
+  })
+
   return (
     <Card className="iti-card">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Cursos ({cursos.length})</CardTitle>
-          <Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Nuevo</Button>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-base">Cursos / Materias Individuales ({cursos.length})</CardTitle>
+            <CardDescription className="text-xs mt-1">
+              Cada curso es una materia individual dentro de una carrera y año. Ej: en 6° Computación están Organización de Empresas, Seminario, Electrónica, Programación, etc.
+            </CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Select value={filtroCarrera} onValueChange={setFiltroCarrera}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Filtrar carrera" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODOS">Todas las carreras</SelectItem>
+                {carreras.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Nuevo</Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2">
-          {cursos.map((c) => (
-            <div key={c.id} className="flex items-center justify-between p-3 border rounded-md">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm">{c.nombre}</div>
-                <div className="text-xs text-muted-foreground">{c.carrera.nombre} · {c.anio}° año</div>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className="text-[10px]">{c._count?.inscripciones || 0} estudiantes</Badge>
-                  <Badge variant="outline" className="text-[10px]">{c._count?.asignaciones || 0} docentes</Badge>
+        {cursosFiltrados.length === 0 ? (
+          <div className="text-center py-8 bg-muted/20 rounded-md">
+            <BookOpen className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">
+              No hay cursos creados. Haga clic en "Nuevo" para crear materias individuales (ej: Organización de Empresas, Programación, etc.)
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Object.entries(porCarrera).map(([carreraNombre, lista]) => (
+              <div key={carreraNombre}>
+                <div className="text-sm font-semibold text-primary mb-2 border-b pb-1">{carreraNombre}</div>
+                <div className="space-y-2">
+                  {lista.sort((a, b) => a.anio - b.anio).map((c) => (
+                    <div key={c.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/10">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm">{c.nombre}</div>
+                        <div className="text-xs text-muted-foreground">{c.anio}° año</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-[10px]">{c._count?.inscripciones || 0} estudiantes</Badge>
+                          <Badge variant="outline" className="text-[10px]">{c._count?.asignaciones || 0} docentes</Badge>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => eliminar(c.id, c.nombre)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => eliminar(c.id)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuevo Curso</DialogTitle>
+            <DialogTitle>Nuevo Curso / Materia</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Cree una materia individual para una carrera y año específicos. Ej: "Organización de Empresas" para 6° Computación.
+            </p>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Nombre *</Label>
-              <Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+              <Label>Nombre del curso / materia *</Label>
+              <Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Organización de Empresas, Programación, Electrónica..." />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Carrera *</Label>
                 <Select value={form.carreraId} onValueChange={(v) => setForm({ ...form, carreraId: v })}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar carrera" /></SelectTrigger>
                   <SelectContent>
                     {carreras.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Año *</Label>
+                <Label>Año / Grado *</Label>
                 <Select value={form.anio} onValueChange={(v) => setForm({ ...form, anio: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -276,11 +396,11 @@ function CursosTab() {
             </div>
             <div>
               <Label>Descripción</Label>
-              <Textarea rows={2} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+              <Textarea rows={2} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} placeholder="Breve descripción del contenido del curso" />
             </div>
             <div>
-              <Label>Pensum (JSON de áreas)</Label>
-              <Textarea rows={4} value={form.pensum} onChange={(e) => setForm({ ...form, pensum: e.target.value })}
+              <Label>Pensum (JSON de áreas - opcional)</Label>
+              <Textarea rows={3} value={form.pensum} onChange={(e) => setForm({ ...form, pensum: e.target.value })}
                 placeholder='[{"area":"Matemáticas","subarea":"Matemáticas","periodos":5}]' />
             </div>
             <Button onClick={crear} className="w-full bg-primary hover:bg-primary/90">Crear curso</Button>
@@ -299,19 +419,40 @@ function AsignacionesTab() {
   const [asignaciones, setAsignaciones] = useState<any[]>([])
   const [docentes, setDocentes] = useState<any[]>([])
   const [cursos, setCursos] = useState<any[]>([])
+  const [carreras, setCarreras] = useState<any[]>([])
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ cursoId: '', docenteId: '', anio: '4' })
+  const [filtroCarrera, setFiltroCarrera] = useState('TODOS')
+  const [filtroAnio, setFiltroAnio] = useState('TODOS')
+  const [form, setForm] = useState({ cursoId: '', docenteId: '', anio: '' })
 
   const cargar = () => {
     fetch('/api/admin/asignaciones').then(r => r.json()).then(d => setAsignaciones(d.asignaciones || []))
     fetch('/api/admin/docentes').then(r => r.json()).then(d => setDocentes(d.docentes || []))
     fetch('/api/admin/cursos').then(r => r.json()).then(d => setCursos(d.cursos || []))
+    fetch('/api/admin/carreras').then(r => r.json()).then(d => setCarreras(d.carreras || []))
   }
   useEffect(() => { cargar() }, [])
+
+  // Filtrar cursos según carrera y año seleccionados en el diálogo
+  const cursosFiltrados = cursos.filter(c => {
+    if (filtroCarrera !== 'TODOS' && c.carreraId !== filtroCarrera) return false
+    if (filtroAnio !== 'TODOS' && String(c.anio) !== filtroAnio) return false
+    return true
+  })
+
+  // Al seleccionar un curso, auto-llenar el año desde el curso
+  const seleccionarCurso = (cursoId: string) => {
+    const curso = cursos.find(c => c.id === cursoId)
+    setForm(f => ({ ...f, cursoId, anio: curso ? String(curso.anio) : '' }))
+  }
 
   const crear = async () => {
     if (!form.cursoId || !form.docenteId) {
       toast({ title: 'Error', description: 'Seleccione curso y docente', variant: 'destructive' })
+      return
+    }
+    if (!form.anio) {
+      toast({ title: 'Error', description: 'Debe seleccionar un curso que tenga año asignado', variant: 'destructive' })
       return
     }
     const res = await fetch('/api/admin/asignaciones', {
@@ -323,7 +464,9 @@ function AsignacionesTab() {
     if (data.ok) {
       toast({ title: 'Curso asignado', description: 'El docente ahora podrá gestionar este curso' })
       setOpen(false)
-      setForm({ cursoId: '', docenteId: '', anio: '4' })
+      setForm({ cursoId: '', docenteId: '', anio: '' })
+      setFiltroCarrera('TODOS')
+      setFiltroAnio('TODOS')
       cargar()
     } else {
       toast({ title: 'Error', description: data.error || 'No se pudo asignar', variant: 'destructive' })
@@ -342,6 +485,14 @@ function AsignacionesTab() {
     }
   }
 
+  // Agrupar asignaciones por docente
+  const porDocente: Record<string, any[]> = {}
+  asignaciones.forEach(a => {
+    const key = a.docente.user.name
+    if (!porDocente[key]) porDocente[key] = []
+    porDocente[key].push(a)
+  })
+
   return (
     <Card className="iti-card">
       <CardHeader>
@@ -351,7 +502,7 @@ function AsignacionesTab() {
               <UserPlus className="h-5 w-5 text-primary" /> Asignación de Cursos a Docentes
             </CardTitle>
             <CardDescription className="text-xs mt-1">
-              Indique a cada docente qué curso, año y carrera impartirá. Sin esta asignación, el docente no verá ningún curso en su panel.
+              Asigne a cada docente qué materia individual impartirá, en qué carrera y en qué año/grado. Ej: Prof. Pérez → Programación → 6° Computación.
             </CardDescription>
           </div>
           <Button size="sm" onClick={() => setOpen(true)} disabled={docentes.length === 0 || cursos.length === 0}>
@@ -371,29 +522,35 @@ function AsignacionesTab() {
           <div className="text-center py-8 bg-muted/20 rounded-md">
             <BookOpen className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">
-              Aún no hay asignaciones. Haga clic en "Nueva asignación" para indicar qué cursos impartirá cada docente.
+              Aún no hay asignaciones. Haga clic en "Nueva asignación" para indicar qué cursos/materias impartirá cada docente.
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {asignaciones.map((a) => (
-              <div key={a.id} className="flex items-center justify-between p-3 border rounded-md">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold flex-shrink-0">
-                    {a.docente.user.name.charAt(0).toUpperCase()}
+          <div className="space-y-4">
+            {Object.entries(porDocente).map(([docenteNombre, lista]) => (
+              <div key={docenteNombre}>
+                <div className="flex items-center gap-2 mb-2 border-b pb-1">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                    {docenteNombre.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">{a.docente.user.name}</div>
-                    <div className="text-xs text-muted-foreground">{a.docente.user.email}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium text-sm">{a.curso.nombre}</div>
-                    <div className="text-xs text-muted-foreground">{a.curso.carrera.nombre} · {a.anio}° año</div>
+                  <div>
+                    <div className="text-sm font-semibold">{docenteNombre}</div>
+                    <div className="text-xs text-muted-foreground">{lista[0].docente.user.email}</div>
                   </div>
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => eliminar(a.id, a.docente.user.name, a.curso.nombre)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                <div className="space-y-1 ml-10">
+                  {lista.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between p-2 border rounded-md bg-muted/10">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-sm">{a.curso.nombre}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{a.curso.carrera.nombre} · {a.anio}° año</span>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-7" onClick={() => eliminar(a.id, a.docente.user.name, a.curso.nombre)}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -401,9 +558,12 @@ function AsignacionesTab() {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Asignar Curso a Docente</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Seleccione el docente, luego filtre por carrera y año para encontrar el curso/materia que impartirá.
+            </p>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -419,31 +579,64 @@ function AsignacionesTab() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Filtros para encontrar el curso */}
+            <div className="bg-muted/20 p-3 rounded-md space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Filtros para encontrar el curso:</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Carrera</Label>
+                  <Select value={filtroCarrera} onValueChange={setFiltroCarrera}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TODOS">Todas</SelectItem>
+                      {carreras.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Año / Grado</Label>
+                  <Select value={filtroAnio} onValueChange={setFiltroAnio}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TODOS">Todos</SelectItem>
+                      <SelectItem value="4">4° año</SelectItem>
+                      <SelectItem value="5">5° año</SelectItem>
+                      <SelectItem value="6">6° año</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
             <div>
-              <Label>Curso *</Label>
-              <Select value={form.cursoId} onValueChange={(v) => setForm({ ...form, cursoId: v })}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar curso" /></SelectTrigger>
+              <Label>Curso / Materia *</Label>
+              <Select value={form.cursoId} onValueChange={seleccionarCurso}>
+                <SelectTrigger><SelectValue placeholder={cursosFiltrados.length === 0 ? 'No hay cursos con estos filtros' : 'Seleccionar curso'} /></SelectTrigger>
                 <SelectContent>
-                  {cursos.map((c) => (
+                  {cursosFiltrados.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nombre} · {c.carrera.nombre} · {c.anio}°
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {cursosFiltrados.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">No hay cursos con los filtros seleccionados. Cree cursos en la pestaña "Cursos" o cambie los filtros.</p>
+              )}
             </div>
-            <div>
-              <Label>Año *</Label>
-              <Select value={form.anio} onValueChange={(v) => setForm({ ...form, anio: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="4">4° año</SelectItem>
-                  <SelectItem value="5">5° año</SelectItem>
-                  <SelectItem value="6">6° año</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded text-xs text-blue-800 dark:text-blue-200">
+
+            {form.cursoId && (
+              <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded text-xs text-blue-800 dark:text-blue-200">
+                <div className="font-medium mb-1">Resumen de la asignación:</div>
+                <div>Docente: <strong>{docentes.find(d => d.id === form.docenteId)?.user.name || '—'}</strong></div>
+                <div>Curso: <strong>{cursos.find(c => c.id === form.cursoId)?.nombre || '—'}</strong></div>
+                <div>Carrera: <strong>{cursos.find(c => c.id === form.cursoId)?.carrera.nombre || '—'}</strong></div>
+                <div>Año: <strong>{form.anio}°</strong></div>
+              </div>
+            )}
+
+            <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded text-xs text-amber-800 dark:text-amber-200">
               Al asignar el curso, el docente podrá:
               <ul className="list-disc list-inside mt-1 space-y-0.5">
                 <li>Ver el curso en su panel principal</li>
@@ -452,7 +645,7 @@ function AsignacionesTab() {
                 <li>Subir materiales a la biblioteca vinculados al curso</li>
               </ul>
             </div>
-            <Button onClick={crear} className="w-full bg-primary hover:bg-primary/90">
+            <Button onClick={crear} className="w-full bg-primary hover:bg-primary/90" disabled={!form.cursoId || !form.docenteId}>
               <UserPlus className="h-4 w-4 mr-2" /> Asignar curso
             </Button>
           </div>

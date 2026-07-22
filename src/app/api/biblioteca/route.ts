@@ -134,13 +134,15 @@ export async function POST(req: NextRequest) {
         paginas: paginasRaw ? parseInt(paginasRaw, 10) : null,
         idioma: idioma || 'Español',
         publicadoPor: session.userId,
-        docenteId: user?.docente?.id,
+        docenteId: user?.docente?.id ?? null,
       },
     })
 
     return NextResponse.json({ ok: true, libro })
   } catch (e: any) {
-    console.error('[biblioteca POST] error:', e?.message || e)
-    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+    console.error('[biblioteca POST] error:', e?.message || e, e?.stack)
+    return NextResponse.json({
+      error: 'Error del servidor: ' + (e?.message || 'error desconocido'),
+    }, { status: 500 })
   }
 }
