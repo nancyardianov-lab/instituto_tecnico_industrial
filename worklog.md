@@ -130,3 +130,68 @@ Stage Summary:
   * src/components/estudiante/estudiante-horario.tsx (timetable)
   * src/components/estudiante/estudiante-layout.tsx (menú inscripción)
   * src/app/api/estudiante/horario/route.ts (carrera + anio en response)
+
+---
+Task ID: 4
+Agent: main
+Task: Archivos adjuntos al crear tarea (docente) y al entregar (alumno); horario del estudiante vacío y del docente sin grado; panel general vacío
+
+Work Log:
+- Lectura de archivos afectados: docente-tareas.tsx, estudiante-tareas.tsx, docente-horario.tsx, estudiante-horario.tsx, shared/timetable.tsx, docente-layout.tsx, estudiante-layout.tsx, APIs de dashboard/horario/tareas, prisma/schema.prisma, lib/storage.ts, api/blob/.../route.ts, api/biblioteca/route.ts
+- Fix 1 (Archivos adjuntos):
+  * Schema: añadidos `archivoUrl`, `archivoNombre`, `archivoTipo` a models Tarea y Entrega.
+  * storage.ts: nuevo tipo 'tareas' + TAREA_ARCHIVOS_PERMITIDOS (imágenes, videos, documentos) + helper tipoDeArchivo() + MAX_TAREA_ARCHIVO = 5MB.
+  * api/blob/[tipo]/[nombre]/route.ts: soporta tipo 'tareas' + content types de video.
+  * api/docente/tareas/route.ts POST: ahora acepta multipart/form-data con archivo opcional.
+  * api/estudiante/tareas/[id]/entregar/route.ts POST: ahora acepta multipart/form-data con archivo opcional.
+  * docente-tareas.tsx: UI con selector de archivo (foto/video/documento) desde el dispositivo, preview del nombre y tamaño, quitar archivo. Modal de detalle muestra el adjunto (imagen, video player o link de documento). Entregas del alumno muestran su archivo igualmente.
+  * estudiante-tareas.tsx: UI igual para que el alumno suba archivo desde dispositivo. Modal de detalle muestra el adjunto del docente y el propio.
+  * api/estudiante/tareas/route.ts: incluye archivoUrl/archivoNombre/archivoTipo en la respuesta.
+- Fix 2 (Horarios):
+  * api/estudiante/horario/route.ts: ahora deriva el horario de INSCRIPCIONES (más confiable que HorarioEstudiante). Incluye el docente de cada materia. Auto-sincroniza HorarioEstudiante faltantes en background.
+  * shared/timetable.tsx: nueva prop `showGrado` para mostrar el grado (año) dentro de cada bloque. Importa GraduationCap de lucide-react. Title del bloque ahora incluye año + docente.
+  * docente-horario.tsx: pasa showGrado={true} al Timetable.
+- Fix 3 (Panel general vacío):
+  * api/estudiante/dashboard/route.ts:
+    - HorarioHoy ahora son "próximas clases": si hoy hay clases usa las de hoy, sino busca el siguiente día hábil con clases.
+    - tareasPendientes ya NO filtra por fecha >= hoy: incluye vencidas, marcadas con `vencida: true`.
+    - Cada clase incluye el docente (antes no lo tenía).
+    - horarioHoyLabel: 'Hoy' o nombre del día de las próximas clases.
+  * api/docente/dashboard/route.ts:
+    - Misma lógica de "próximas clases" para horarioHoy.
+    - Cada clase incluye carrera, anio, aula.
+  * estudiante-layout.tsx: 
+    - Título dinámico "Clases de Hoy" o "Próximas Clases (Día)".
+    - Cada clase muestra docente + aula.
+    - Tareas vencidas marcadas con borde rojo + badge "Vencida".
+  * docente-layout.tsx:
+    - Título dinámico.
+    - Cada clase muestra carrera + año + aula.
+    - Botón "Ver horario completo" agregado al panel de clases.
+- `npx prisma generate` ejecutado correctamente.
+- Build exitoso: `npm run build` → "✓ Compiled successfully in 12.2s"
+- Commit `59824c5` y push a GitHub (Netlify desplegará automáticamente).
+
+Stage Summary:
+- 3 problemas corregidos en este turno:
+  1. Archivos adjuntos: docente puede subir foto/video/documento al crear tarea; alumno puede hacer lo mismo al entregar. Vista previa integrada (imagen, video player, link de documento). Compatible con Netlify Blobs y Vercel Blob.
+  2. Horario: estudiante ahora SÍ ve su horario (derivado de inscripciones, no de tabla intermedia que podía no estar sincronizada) con el docente de cada materia; docente ve el grado (año) de cada materia.
+  3. Panel general: ya no aparece vacío — muestra "próximas clases" (hoy o siguiente día hábil) con docente/carrera/grado, y todas las tareas pendientes (incluyendo vencidas marcadas en rojo).
+- IMPORTANTE para producción: requiere aplicar el cambio de schema a la BD. Como los campos nuevos son opcionales (String?), basta con `npx prisma db push` o `npx prisma migrate deploy` contra la BD de producción (Neon/Supabase) — no se pierden datos existentes.
+- Archivos nuevos: ninguno (todos son modificaciones a archivos existentes).
+- Archivos modificados (15):
+  * prisma/schema.prisma (campos archivoUrl/archivoNombre/archivoTipo en Tarea y Entrega)
+  * src/lib/storage.ts (tipo 'tareas' + TAREA_ARCHIVOS_PERMITIDOS + tipoDeArchivo)
+  * src/app/api/blob/[tipo]/[nombre]/route.ts (soporte tipo 'tareas' + content-types video)
+  * src/app/api/docente/tareas/route.ts POST (multipart + subida archivo)
+  * src/app/api/estudiante/tareas/[id]/entregar/route.ts POST (multipart + subida archivo)
+  * src/app/api/estudiante/tareas/route.ts (incluye campos de archivo en response)
+  * src/app/api/estudiante/horario/route.ts (deriva de inscripciones + sincroniza HorarioEstudiante faltantes)
+  * src/app/api/estudiante/dashboard/route.ts (próximas clases + tareas vencidas + docente por clase)
+  * src/app/api/docente/dashboard/route.ts (próximas clases + carrera/grado por clase)
+  * src/components/shared/timetable.tsx (prop showGrado + GraduationCap)
+  * src/components/docente/docente-horario.tsx (showGrado=true)
+  * src/components/docente/docente-tareas.tsx (UI subir archivo + preview)
+  * src/components/docente/docente-layout.tsx (título dinámico + info por clase)
+  * src/components/estudiante/estudiante-tareas.tsx (UI subir archivo + preview)
+  * src/components/estudiante/estudiante-layout.tsx (título dinámico + docente por clase + tareas vencidas)
