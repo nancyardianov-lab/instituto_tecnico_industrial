@@ -33,6 +33,16 @@ function isNetlify(): boolean {
   return !!(process.env.NETLIFY || process.env.NETLIFY_LOCAL)
 }
 
+// Detecta si el sistema de archivos es escribible (desarrollo local, NO producción serverless)
+function canWriteLocalFilesystem(): boolean {
+  // En Netlify (producción) el filesystem es de solo lectura
+  if (isNetlify()) return false
+  // En Vercel producción el filesystem también es de solo lectura
+  if (process.env.VERCEL) return false
+  // En desarrollo local sí podemos escribir
+  return true
+}
+
 function sanitizeNombre(nombre: string): string {
   return nombre
     .normalize('NFD')
@@ -87,9 +97,10 @@ export async function subirArchivo(
         await store.set(nombreSeguro, buffer)
         // URL pública vía API route que sirve el blob
         const url = `/api/blob/${tipo}/${nombreSeguro}`
+        console.log('[storage] archivo guardado en Netlify Blobs:', url)
         return { ok: true, url }
       } catch (e: any) {
-        console.error('[netlify-blob] error subiendo:', e?.message || e)
+        console.error('[netlify-blob] error subiendo:', e?.message || e, e?.stack)
         return { ok: false, error: 'Error al subir archivo a Netlify Blobs: ' + (e?.message || 'desconocido') }
       }
     }
@@ -121,6 +132,14 @@ export async function subirArchivo(
   }
 
   // ====== Desarrollo: sistema de archivos local ======
+  if (!canWriteLocalFilesystem()) {
+    // Estamos en un entorno serverless sin Blobs disponible
+    return {
+      ok: false,
+      error: 'Almacenamiento no configurado en este entorno. Contacte al administrador.',
+    }
+  }
+
   try {
     let destinoDir: string
     if (tipo === 'portadas') destinoDir = UPLOAD_PORTADAS_DIR
@@ -134,6 +153,7 @@ export async function subirArchivo(
     if (tipo === 'portadas') rutaPublica = `/uploads/biblioteca/${tipo}/${nombreSeguro}`
     else if (tipo === 'tareas') rutaPublica = `/uploads/tareas/${nombreSeguro}`
     else rutaPublica = `/uploads/biblioteca/${tipo}/${nombreSeguro}`
+    console.log('[storage] archivo guardado localmente:', rutaPublica)
     return { ok: true, url: rutaPublica }
   } catch (e: any) {
     console.error('[storage] error escribiendo archivo local:', e?.message || e)

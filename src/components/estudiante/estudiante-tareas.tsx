@@ -33,16 +33,36 @@ export function EstudianteTareas() {
       toast({ title: 'Error', description: 'Agregue un comentario o suba un archivo', variant: 'destructive' })
       return
     }
+    // Validación previa de tamaño (5MB - límite Netlify-safe)
+    if (archivo && archivo.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'Archivo demasiado grande',
+        description: `El archivo pesa ${(archivo.size / 1024 / 1024).toFixed(1)}MB. El máximo permitido es 5MB.`,
+        variant: 'destructive',
+      })
+      return
+    }
     setEnviando(true)
     try {
       const fd = new FormData()
-      fd.append('comentario', entrega.comentario)
+      // Solo append si hay contenido (evita enviar strings vacíos como "undefined")
+      fd.append('comentario', entrega.comentario || '')
       if (archivo) fd.append('archivo', archivo)
 
       const res = await fetch(`/api/estudiante/tareas/${tareaSel.id}/entregar`, {
         method: 'POST',
         body: fd,
       })
+      // Si la respuesta no es JSON (ej. error 413 de Netlify por body demasiado grande)
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        const txt = await res.text().catch(() => '')
+        throw new Error(
+          res.status === 413
+            ? 'El archivo es demasiado grande para el servidor (límite 5MB).'
+            : `Error del servidor (${res.status}). ${txt.slice(0, 100)}`
+        )
+      }
       const data = await res.json()
       if (data.ok) {
         toast({ title: 'Tarea entregada', description: 'El docente revisará su entrega.' })
@@ -52,10 +72,19 @@ export function EstudianteTareas() {
         if (fileInputRef.current) fileInputRef.current.value = ''
         cargar()
       } else {
-        toast({ title: 'Error', description: data.error, variant: 'destructive' })
+        toast({
+          title: 'No se pudo entregar',
+          description: data.error || 'Error desconocido del servidor',
+          variant: 'destructive',
+        })
       }
     } catch (e: any) {
-      toast({ title: 'Error', description: e?.message || 'Error inesperado', variant: 'destructive' })
+      console.error('[entregar] error:', e)
+      toast({
+        title: 'Error de conexión',
+        description: e?.message || 'No se pudo conectar con el servidor. Verifique su conexión e intente de nuevo.',
+        variant: 'destructive',
+      })
     } finally {
       setEnviando(false)
     }

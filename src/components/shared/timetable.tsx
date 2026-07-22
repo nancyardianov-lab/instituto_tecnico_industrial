@@ -198,34 +198,38 @@ export function Timetable({
                       const top = ((toMin(entry.horaInicio) - startMin) / 30) * CELL_HEIGHT
                       const height = ((toMin(entry.horaFin) - toMin(entry.horaInicio)) / 30) * CELL_HEIGHT
                       const color = colorForSubject(entry.curso)
+                      // Etiqueta combinada carrera + grado (ej: "Mecánica · 5° año")
+                      const carreraYGrado = [entry.carrera, entry.anio ? `${entry.anio}° año` : null]
+                        .filter(Boolean)
+                        .join(' · ')
                       return (
                         <div
                           key={entry.id}
                           className={`absolute left-0.5 right-0.5 rounded-md border-l-4 ${color.bg} ${color.border} ${color.text} p-1 overflow-hidden`}
                           style={{ top: `${top}px`, height: `${height - 2}px`, minHeight: '24px' }}
-                          title={`${entry.curso}${entry.anio ? ` — ${entry.anio}° año` : ''}${entry.docente ? ` — ${entry.docente}` : ''} — ${entry.horaInicio} a ${entry.horaFin}`}
+                          title={`${entry.curso}${carreraYGrado ? ` — ${carreraYGrado}` : ''}${entry.docente ? ` — ${entry.docente}` : ''} — ${entry.horaInicio} a ${entry.horaFin}`}
                         >
                           <div className="text-[10px] sm:text-xs font-semibold leading-tight line-clamp-2">
                             {entry.curso}
                           </div>
+                          {height >= 40 && showCarrera && carreraYGrado && (
+                            <div className="text-[9px] sm:text-[10px] flex items-center gap-0.5 mt-0.5 opacity-80 line-clamp-1">
+                              <BookOpen className="h-2.5 w-2.5 flex-shrink-0" /> {carreraYGrado}
+                            </div>
+                          )}
+                          {height >= 40 && showGrado && !showCarrera && entry.anio && (
+                            <div className="text-[9px] sm:text-[10px] flex items-center gap-0.5 mt-0.5 opacity-80 line-clamp-1">
+                              <GraduationCap className="h-2.5 w-2.5 flex-shrink-0" /> {entry.anio}° año
+                            </div>
+                          )}
                           {height >= 50 && showDocente && entry.docente && (
                             <div className="text-[9px] sm:text-[10px] flex items-center gap-0.5 mt-0.5 opacity-80 line-clamp-1">
                               <User className="h-2.5 w-2.5 flex-shrink-0" /> {entry.docente}
                             </div>
                           )}
-                          {height >= 50 && showGrado && entry.anio && (
-                            <div className="text-[9px] sm:text-[10px] flex items-center gap-0.5 mt-0.5 opacity-80 line-clamp-1">
-                              <GraduationCap className="h-2.5 w-2.5 flex-shrink-0" /> {entry.anio}° año
-                            </div>
-                          )}
                           {height >= 70 && showAula && entry.aula && (
-                            <div className="text-[9px] sm:text-[10px] flex items-center gap-0.5 opacity-80 line-clamp-1">
+                            <div className="text-[9px] sm:text-[10px] flex items-center gap-0.5 mt-0.5 opacity-80 line-clamp-1">
                               <MapPin className="h-2.5 w-2.5 flex-shrink-0" /> {entry.aula}
-                            </div>
-                          )}
-                          {height >= 90 && showCarrera && entry.carrera && (
-                            <div className="text-[9px] sm:text-[10px] flex items-center gap-0.5 opacity-70 line-clamp-1">
-                              <BookOpen className="h-2.5 w-2.5 flex-shrink-0" /> {entry.carrera}
                             </div>
                           )}
                           {height >= 40 && (

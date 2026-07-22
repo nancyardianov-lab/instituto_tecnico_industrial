@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuthStore, useRouterStore } from '@/lib/store'
 import {
   LayoutDashboard, User, BookOpen, ClipboardList, Award, Library,
-  Calendar, Clock, Users, ChevronRight, Bell
+  Calendar, Clock, Users, ChevronRight, Bell, AlertCircle
 } from 'lucide-react'
 import { DocenteCursos } from './docente-cursos'
 import { DocenteTareas } from './docente-tareas'
@@ -43,10 +43,22 @@ export function DocenteLayout() {
 
   useEffect(() => {
     if (active === 'dashboard') {
-      fetch('/api/docente/dashboard').then(r => r.json()).then(d => {
-        setData(d)
-        setLoading(false)
-      })
+      fetch('/api/docente/dashboard')
+        .then(r => r.json().then(body => ({ ok: r.ok, body })))
+        .then(({ ok, body }) => {
+          if (!ok || body.error || !body.user) {
+            console.error('[docente-dashboard] error:', body.error || 'respuesta inválida')
+            setData(null)
+          } else {
+            setData(body)
+          }
+          setLoading(false)
+        })
+        .catch(e => {
+          console.error('[docente-dashboard] fetch error:', e)
+          setData(null)
+          setLoading(false)
+        })
     }
   }, [active])
 
@@ -104,9 +116,28 @@ export function DocenteLayout() {
 }
 
 function DocenteDashboard({ data, loading, navigate }: any) {
-  if (loading || !data) {
+  if (loading) {
     return <div className="flex items-center justify-center py-20"><p className="text-muted-foreground">Cargando panel...</p></div>
   }
+
+  if (!data || !data.user) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center max-w-md">
+          <AlertCircle className="h-10 w-10 mx-auto mb-3 text-amber-500" />
+          <p className="font-medium text-sm mb-1">No se pudo cargar el panel</p>
+          <p className="text-xs text-muted-foreground">
+            Hubo un problema al cargar tu información. Intenta recargar la página o cerrar sesión y volver a entrar.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Validar campos (evitar crashes si faltan)
+  const horarioHoy = data.horarioHoy || []
+  const ultimasEntregas = data.ultimasEntregas || []
+  const cursos = data.cursos || []
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -170,11 +201,11 @@ function DocenteDashboard({ data, loading, navigate }: any) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {data.horarioHoy.length === 0 ? (
+            {horarioHoy.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No tiene clases programadas esta semana.</p>
             ) : (
               <div className="space-y-2">
-                {data.horarioHoy.map((h: any) => (
+                {horarioHoy.map((h: any) => (
                   <div key={h.id} className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
                     <div className="text-xs font-medium text-primary w-20">{h.horaInicio} - {h.horaFin}</div>
                     <div className="flex-1">
@@ -201,11 +232,11 @@ function DocenteDashboard({ data, loading, navigate }: any) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {data.ultimasEntregas.length === 0 ? (
+            {ultimasEntregas.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No hay entregas pendientes de revisión.</p>
             ) : (
               <div className="space-y-2">
-                {data.ultimasEntregas.map((e: any) => (
+                {ultimasEntregas.map((e: any) => (
                   <div key={e.id} className="p-2 rounded-md bg-muted/30">
                     <div className="text-sm font-medium line-clamp-1">{e.tarea.titulo}</div>
                     <div className="text-xs text-muted-foreground">{e.estudiante.user.name}</div>
@@ -227,7 +258,7 @@ function DocenteDashboard({ data, loading, navigate }: any) {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {data.cursos.map((c: any) => (
+            {cursos.map((c: any) => (
               <div key={c.id} className="border rounded-md p-3 bg-muted/20">
                 <div className="font-semibold text-sm">{c.nombre}</div>
                 <div className="text-xs text-muted-foreground mb-2">{c.carrera}</div>

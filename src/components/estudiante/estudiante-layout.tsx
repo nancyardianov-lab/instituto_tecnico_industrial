@@ -10,7 +10,7 @@ import { useAuthStore, useRouterStore } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 import {
   LayoutDashboard, User, BookOpen, FileText, Calendar, Bell,
-  GraduationCap, Clock, TrendingUp, ChevronRight, Library, ClipboardList, Award, BookMarked
+  GraduationCap, Clock, TrendingUp, ChevronRight, Library, ClipboardList, Award, BookMarked, AlertCircle
 } from 'lucide-react'
 import { EstudianteNotas } from './estudiante-notas'
 import { EstudianteBiblioteca } from './estudiante-biblioteca'
@@ -49,10 +49,22 @@ export function EstudianteLayout() {
 
   useEffect(() => {
     if (active === 'dashboard') {
-      fetch('/api/estudiante/dashboard').then(r => r.json()).then(d => {
-        setData(d)
-        setLoading(false)
-      })
+      fetch('/api/estudiante/dashboard')
+        .then(r => r.json().then(body => ({ ok: r.ok, body })))
+        .then(({ ok, body }) => {
+          if (!ok || body.error || !body.user) {
+            console.error('[estudiante-dashboard] error:', body.error || 'respuesta inválida')
+            setData(null)
+          } else {
+            setData(body)
+          }
+          setLoading(false)
+        })
+        .catch(e => {
+          console.error('[estudiante-dashboard] fetch error:', e)
+          setData(null)
+          setLoading(false)
+        })
     }
   }, [active])
 
@@ -124,7 +136,7 @@ export function EstudianteLayout() {
 }
 
 function EstudianteDashboard({ data, loading, notifs, navigate }: any) {
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-muted-foreground">Cargando panel...</p>
@@ -132,7 +144,25 @@ function EstudianteDashboard({ data, loading, notifs, navigate }: any) {
     )
   }
 
-  const promedioPorcentaje = Math.min((data.promedioGeneral / 100) * 100, 100)
+  if (!data || !data.user) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center max-w-md">
+          <AlertCircle className="h-10 w-10 mx-auto mb-3 text-amber-500" />
+          <p className="font-medium text-sm mb-1">No se pudo cargar el panel</p>
+          <p className="text-xs text-muted-foreground">
+            Hubo un problema al cargar tu información. Intenta recargar la página o cerrar sesión y volver a entrar.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Validar campos antes de usarlos (evitar crashes si faltan)
+  const horarioHoy = data.horarioHoy || []
+  const tareasPendientes = data.tareasPendientes || []
+  const promedioGeneral = data.promedioGeneral || 0
+  const promedioPorcentaje = Math.min((promedioGeneral / 100) * 100, 100)
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -171,7 +201,7 @@ function EstudianteDashboard({ data, loading, notifs, navigate }: any) {
               <ClipboardList className="h-4 w-4 text-primary" />
               <div className="text-xs text-muted-foreground">Tareas Pendientes</div>
             </div>
-            <div className="text-2xl font-bold text-primary">{data.tareasPendientes.length}</div>
+            <div className="text-2xl font-bold text-primary">{tareasPendientes.length}</div>
           </CardContent>
         </Card>
         <Card className="iti-card">
@@ -194,11 +224,11 @@ function EstudianteDashboard({ data, loading, notifs, navigate }: any) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {data.horarioHoy.length === 0 ? (
+            {horarioHoy.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No tienes clases programadas esta semana.</p>
             ) : (
               <div className="space-y-2">
-                {data.horarioHoy.map((h: any) => (
+                {horarioHoy.map((h: any) => (
                   <div key={h.id} className="flex items-center gap-3 p-2 rounded-md bg-muted/30">
                     <div className="text-xs font-medium text-primary w-20">
                       {h.horaInicio} - {h.horaFin}
@@ -230,11 +260,11 @@ function EstudianteDashboard({ data, loading, notifs, navigate }: any) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {data.tareasPendientes.length === 0 ? (
+            {tareasPendientes.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No hay tareas pendientes.</p>
             ) : (
               <div className="space-y-2">
-                {data.tareasPendientes.slice(0, 5).map((t: any) => (
+                {tareasPendientes.slice(0, 5).map((t: any) => (
                   <div key={t.id} className={`p-2 rounded-md bg-muted/30 ${t.vencida ? 'border-l-2 border-red-400' : ''}`}>
                     <div className="text-sm font-medium line-clamp-1">{t.titulo}</div>
                     <div className="flex items-center justify-between mt-1">
