@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuthStore, useRouterStore } from '@/lib/store'
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen, Library, FileText,
-  Mail, Bell, Settings, FolderTree, ClipboardList, Award
+  Mail, Bell, Settings, FolderTree, ClipboardList, Award, Download, Code2, Loader2
 } from 'lucide-react'
 import { AdminUsuarios } from './admin-usuarios'
 import { AdminPreinscripciones } from './admin-preinscripciones'
@@ -209,6 +209,9 @@ function AdminDashboard({ stats, loading, navigate }: any) {
         </Card>
       </div>
 
+      {/* Descargar código fuente del proyecto */}
+      <DescargarCodigoCard />
+
       {/* Preinscripciones por estado */}
       <Card className="iti-card">
         <CardHeader>
@@ -256,5 +259,81 @@ function AdminDashboard({ stats, loading, navigate }: any) {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+/**
+ * Card para descargar TODO el código fuente del proyecto como ZIP.
+ * Solo visible para admin. Llama al endpoint /api/descargar-codigo.
+ */
+function DescargarCodigoCard() {
+  const [descargando, setDescargando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const descargar = async () => {
+    setDescargando(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/descargar-codigo')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Error ${res.status}`)
+      }
+      // Convertir respuesta a blob y disparar descarga
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      // Tomar el filename del header Content-Disposition o usar default
+      const cd = res.headers.get('Content-Disposition') || ''
+      const match = cd.match(/filename="?([^"]+)"?/)
+      a.download = match?.[1] || 'codigo-proyecto.zip'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1500)
+    } catch (e: any) {
+      console.error('[descargar-codigo] error:', e)
+      setError(e?.message || 'Error inesperado')
+    } finally {
+      setDescargando(false)
+    }
+  }
+
+  return (
+    <Card className="iti-card border-primary/30 bg-primary/5">
+      <CardContent className="p-5">
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center bg-primary/10 flex-shrink-0">
+            <Code2 className="h-7 w-7 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-base flex items-center gap-2">
+              Descargar código fuente del proyecto
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Genera un archivo ZIP con todo el código fuente de la aplicación
+              (componentes, APIs, schema de base de datos, configuraciones).
+              <strong> Excluye</strong>: <code>node_modules</code>, <code>.env</code> (credenciales),
+              <code> public/uploads</code> (archivos subidos), <code>skills</code> y bases de datos locales.
+            </p>
+            {error && (
+              <p className="text-xs text-destructive mt-2">Error: {error}</p>
+            )}
+          </div>
+          <Button
+            onClick={descargar}
+            disabled={descargando}
+            className="bg-primary hover:bg-primary/90 flex-shrink-0"
+          >
+            {descargando ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generando ZIP...</>
+            ) : (
+              <><Download className="h-4 w-4 mr-2" /> Descargar ZIP</>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
