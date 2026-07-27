@@ -195,3 +195,32 @@ Stage Summary:
   * src/components/docente/docente-layout.tsx (título dinámico + info por clase)
   * src/components/estudiante/estudiante-tareas.tsx (UI subir archivo + preview)
   * src/components/estudiante/estudiante-layout.tsx (título dinámico + docente por clase + tareas vencidas)
+
+---
+Task ID: 5
+Agent: main
+Task: Hacer descargables los archivos adjuntos (tareas y biblioteca)
+
+Work Log:
+- Lectura de docente-tareas.tsx, estudiante-tareas.tsx, estudiante-biblioteca.tsx, docente-biblioteca.tsx.
+- Diagnóstico: los archivos se abrían inline en pestaña nueva (target=_blank). El atributo `download` de HTML no funciona para URLs cross-origin (Netlify/Vercel Blob).
+- Solución: fetch → blob → objectURL → <a download> → revoke, con fallback a window.open si falla CORS.
+- Creado src/lib/download.ts: helper descargarArchivo(url, nombre) y verArchivo(url).
+- Creado src/components/shared/archivo-adjunto.tsx: componente reutilizable con preview (imagen/video/doc) + botones Ver y Descargar (spinner de carga).
+- docente-tareas.tsx: reemplazado ArchivoAdjuntoCard local por <ArchivoAdjunto>. Etiquetas diferenciadas ("Archivo de apoyo:", "Archivo entregado:").
+- estudiante-tareas.tsx: idem. Etiquetas "Archivo del docente:" y "Mi entrega:".
+- estudiante-biblioteca.tsx: descargarLibro() ahora usa descargarArchivo() en vez de window.open(). Spinner durante la descarga.
+- docente-biblioteca.tsx: agregado botón "Descargar" al lado de "Eliminar" en cada card de libro.
+- Build exitoso: 'Compiled successfully in 13.7s'.
+- Commit c766013 y push a GitHub (Netlify desplegará automáticamente).
+
+Stage Summary:
+- Archivos nuevos:
+  * src/lib/download.ts (helper descargarArchivo + verArchivo)
+  * src/components/shared/archivo-adjunto.tsx (componente reutilizable)
+- Archivos modificados (4):
+  * src/components/docente/docente-tareas.tsx
+  * src/components/estudiante/estudiante-tareas.tsx
+  * src/components/estudiante/estudiante-biblioteca.tsx
+  * src/components/docente/docente-biblioteca.tsx
+- Ahora TODOS los archivos adjuntos (tareas del docente, entregas del estudiante, libros de biblioteca) se descargan forzadamente al dispositivo del usuario, en vez de abrirse inline en una pestaña nueva.
