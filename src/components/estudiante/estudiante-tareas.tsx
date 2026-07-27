@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ClipboardList, Clock, CheckCircle2, AlertCircle, Upload, Send, FileText, ImageIcon, Video, Paperclip, X } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ArchivoAdjunto } from '@/components/shared/archivo-adjunto'
 
 export function EstudianteTareas() {
   const { toast } = useToast()
@@ -228,10 +229,11 @@ export function EstudianteTareas() {
 
                 {/* Archivo de apoyo del docente */}
                 {tareaSel.archivoUrl && (
-                  <ArchivoAdjuntoCard
+                  <ArchivoAdjunto
                     url={tareaSel.archivoUrl}
                     nombre={tareaSel.archivoNombre || 'archivo'}
                     tipo={tareaSel.archivoTipo}
+                    etiqueta="Archivo del docente:"
                   />
                 )}
 
@@ -245,10 +247,11 @@ export function EstudianteTareas() {
                     )}
                     {tareaSel.entrega.archivoUrl && (
                       <div className="mt-2">
-                        <ArchivoAdjuntoCard
+                        <ArchivoAdjunto
                           url={tareaSel.entrega.archivoUrl}
                           nombre={tareaSel.entrega.archivoNombre || 'mi-entrega'}
                           tipo={tareaSel.entrega.archivoTipo}
+                          etiqueta="Mi entrega:"
                         />
                       </div>
                     )}
@@ -345,45 +348,4 @@ export function EstudianteTareas() {
 }
 
 // Componente reutilizable para mostrar archivo adjunto
-function ArchivoAdjuntoCard({ url, nombre, tipo }: { url: string; nombre: string; tipo?: string | null }) {
-  const isImage = tipo === 'imagen' || (!tipo && /\.(jpg|jpeg|png|webp|gif)$/i.test(url))
-  const isVideo = tipo === 'video' || (!tipo && /\.(mp4|webm|mov|avi)$/i.test(url))
-
-  return (
-    <div className="border rounded-md p-3 bg-muted/20">
-      <div className="text-xs font-medium text-primary mb-2 flex items-center gap-1">
-        <Paperclip className="h-3 w-3" /> Archivo adjunto:
-      </div>
-      {isImage && (
-        <img src={url} alt={nombre} className="max-h-64 rounded-md mx-auto" />
-      )}
-      {isVideo && (
-        <video controls className="w-full max-h-64 rounded-md">
-          <source src={url} />
-          Tu navegador no soporta el reproductor de video.
-        </video>
-      )}
-      {!isImage && !isVideo && (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 p-2 rounded border bg-background hover:bg-muted/40"
-        >
-          <FileText className="h-5 w-5 text-primary" />
-          <span className="text-sm underline">{nombre}</span>
-        </a>
-      )}
-      {(isImage || isVideo) && (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-primary hover:underline block mt-1 text-center"
-        >
-          Ver/Descargar: {nombre}
-        </a>
-      )}
-    </div>
-  )
-}
+// → Reemplazado por <ArchivoAdjunto /> compartido en @/components/shared/archivo-adjunto

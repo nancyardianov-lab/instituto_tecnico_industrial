@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Search, Book, Star, Download, Heart, MessageCircle, Send, ExternalLink } from 'lucide-react'
+import { Search, Book, Star, Download, Heart, MessageCircle, Send, ExternalLink, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthStore } from '@/lib/store'
+import { descargarArchivo } from '@/lib/download'
 
 export function EstudianteBiblioteca() {
   const { user } = useAuthStore()
@@ -25,6 +26,7 @@ export function EstudianteBiblioteca() {
   const [comentarios, setComentarios] = useState<any[]>([])
   const [nuevoComentario, setNuevoComentario] = useState({ texto: '', calificacion: 5 })
   const [favoritos, setFavoritos] = useState<Set<string>>(new Set())
+  const [descargando, setDescargando] = useState(false)
 
   const cargarLibros = () => {
     const params = new URLSearchParams()
@@ -88,10 +90,17 @@ export function EstudianteBiblioteca() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ accion: 'descarga' }),
     }).catch(() => {})
-    // Si es una ruta local (/uploads/...) abrirla en una pestaña nueva
-    // Si es una URL externa (https://...) también
-    window.open(libro.archivoUrl, '_blank')
-    toast({ title: 'Descargando...', description: libro.titulo })
+    // Forzar descarga real (fetch → blob → download)
+    setDescargando(true)
+    try {
+      const nombre = `${libro.titulo || 'libro'}`
+      await descargarArchivo(libro.archivoUrl, nombre)
+      toast({ title: 'Descarga iniciada', description: libro.titulo })
+    } catch (e: any) {
+      toast({ title: 'No se pudo descargar', description: e?.message || 'Error desconocido', variant: 'destructive' })
+    } finally {
+      setTimeout(() => setDescargando(false), 800)
+    }
   }
 
   return (
@@ -213,8 +222,12 @@ export function EstudianteBiblioteca() {
               )}
 
               {libroSel.archivoUrl && libroSel.archivoUrl !== '#' && (
-                <Button size="sm" className="bg-primary hover:bg-primary/90 mt-2" onClick={() => descargarLibro(libroSel)}>
-                  <Download className="h-4 w-4 mr-2" /> Descargar / Abrir archivo
+                <Button size="sm" className="bg-primary hover:bg-primary/90 mt-2" onClick={() => descargarLibro(libroSel)} disabled={descargando}>
+                  {descargando ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Descargando...</>
+                  ) : (
+                    <><Download className="h-4 w-4 mr-2" /> Descargar archivo</>
+                  )}
                 </Button>
               )}
 

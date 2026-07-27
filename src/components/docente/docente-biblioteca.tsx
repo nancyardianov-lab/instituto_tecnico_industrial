@@ -9,10 +9,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Search, Book, Plus, Trash2, Edit, Star, Heart, MessageCircle, Upload, FileText, Image as ImageIcon, X } from 'lucide-react'
+import { Search, Book, Plus, Trash2, Edit, Star, Heart, MessageCircle, Upload, FileText, Image as ImageIcon, X, Download, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthStore } from '@/lib/store'
 import { EstudianteBiblioteca } from '../estudiante/estudiante-biblioteca'
+import { descargarArchivo } from '@/lib/download'
 
 export function DocenteBiblioteca() {
   const { user } = useAuthStore()
@@ -47,6 +48,7 @@ function GestionBiblioteca({ onBack }: { onBack: () => void }) {
   const [archivoFile, setArchivoFile] = useState<File | null>(null)
   const [portadaFile, setPortadaFile] = useState<File | null>(null)
   const [archivoUrl, setArchivoUrl] = useState('') // URL opcional si no se sube archivo
+  const [descargandoId, setDescargandoId] = useState<string | null>(null)
   const [portadaUrl, setPortadaUrl] = useState('') // URL opcional si no se sube portada
   const archivoInputRef = useRef<HTMLInputElement>(null)
   const portadaInputRef = useRef<HTMLInputElement>(null)
@@ -162,9 +164,36 @@ function GestionBiblioteca({ onBack }: { onBack: () => void }) {
                 <span className="flex items-center gap-1">Vistas: {l.vistas}</span>
                 <span className="flex items-center gap-1">Descargas: {l.descargas}</span>
               </div>
-              <Button size="sm" variant="ghost" className="w-full text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => eliminar(l.id, l.titulo)}>
-                <Trash2 className="h-3 w-3 mr-1" /> Eliminar
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="flex-1"
+                  onClick={async () => {
+                    if (!l.archivoUrl || l.archivoUrl === '#') {
+                      toast({ title: 'Sin archivo', description: 'Este libro no tiene archivo', variant: 'destructive' })
+                      return
+                    }
+                    setDescargandoId(l.id)
+                    try {
+                      await descargarArchivo(l.archivoUrl, l.titulo || 'libro')
+                    } finally {
+                      setTimeout(() => setDescargandoId(null), 800)
+                    }
+                  }}
+                  disabled={descargandoId === l.id}
+                >
+                  {descargandoId === l.id ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Download className="h-3 w-3 mr-1" />
+                  )}
+                  Descargar
+                </Button>
+                <Button size="sm" variant="ghost" className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => eliminar(l.id, l.titulo)}>
+                  <Trash2 className="h-3 w-3 mr-1" /> Eliminar
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}
