@@ -224,3 +224,38 @@ Stage Summary:
   * src/components/estudiante/estudiante-biblioteca.tsx
   * src/components/docente/docente-biblioteca.tsx
 - Ahora TODOS los archivos adjuntos (tareas del docente, entregas del estudiante, libros de biblioteca) se descargan forzadamente al dispositivo del usuario, en vez de abrirse inline en una pestaña nueva.
+
+---
+Task ID: 6
+Agent: main
+Task: Descargar todo el código fuente del proyecto desde el panel admin
+
+Work Log:
+- Instalado `archiver` (npm install archiver --legacy-peer-deps) para crear ZIPs en Node.js puro, sin depender de `git` en el servidor.
+- Creado endpoint `/api/descargar-codigo` (runtime Node.js):
+  * Solo accesible para ADMIN (verificación con getSession).
+  * Recorre recursivamente desde process.cwd() y excluye:
+    - Directorios: node_modules, .git, .next, .vercel, out, build, coverage, .cache,
+      skills, db, public/uploads, scripts/extracted, scripts/career_images,
+      tool-results, upload, download, .zscripts, mini-services, examples, .claude, .z-ai-config
+    - Patrones: .env* (excepto .env.example), *.log, *.db, *.pem, *.tsbuildinfo,
+      next-env.d.ts, package-lock.json, bun.lock, local-*, npm-debug.log*, etc.
+  * Archivos > 5MB se saltan.
+  * Devuelve el ZIP como stream con Content-Disposition: attachment.
+  * Filename: instituto-tecnico-industrial-codigo-YYYY-MM-DD.zip.
+- Componente DescargarCodigoCard agregado al AdminDashboard:
+  * Card destacada con icono Code2 y botón "Descargar ZIP".
+  * Spinner durante la generación.
+  * Mensaje de error si falla.
+  * Descripción visible de qué se incluye y qué se excluye.
+- Build exitoso (con warning esperado de NFT por uso de fs dinámico).
+- Commit a93a67d y push a GitHub (Netlify desplegará automáticamente).
+
+Stage Summary:
+- Archivos nuevos:
+  * src/app/api/descargar-codigo/route.ts (endpoint que genera el ZIP)
+- Archivos modificados:
+  * src/components/admin/admin-layout.tsx (botón DescargarCodigoCard en dashboard)
+  * package.json y package-lock.json (nueva dependencia archiver)
+- Para usarlo: el admin entra a su panel principal y verá un card destacado
+  "Descargar código fuente del proyecto" con botón "Descargar ZIP".
