@@ -259,3 +259,30 @@ Stage Summary:
   * package.json y package-lock.json (nueva dependencia archiver)
 - Para usarlo: el admin entra a su panel principal y verá un card destacado
   "Descargar código fuente del proyecto" con botón "Descargar ZIP".
+
+---
+Task ID: 7
+Agent: main
+Task: Quitar descarga de código del panel admin y entregar ZIP directamente en el chat
+
+Work Log:
+- Revertido admin-layout.tsx: eliminado el componente DescargarCodigoCard del dashboard.
+- Eliminado el endpoint /api/descargar-codigo (ya no es accesible desde la web).
+- Desinstalada la dependencia archiver (ya no se necesita en el server).
+- Creado script /home/z/my-project/scripts/generar_zip_codigo.sh que usa `git archive`
+  para generar el ZIP (solo archivos tracked, excluye automáticamente node_modules,
+  .env*, .next, skills, etc.).
+- ZIP generado: /home/z/my-project/download/instituto-tecnico-industrial-codigo-2026-07-27.zip
+  * Tamaño: 8.8 MB
+  * 303 archivos
+  * Incluye: src/, prisma/, public/ (sin uploads), package.json, .env.example, README.md, etc.
+  * NO incluye: node_modules, .env (credenciales), skills/, db/, .next/, logs
+- Verificado: 0 archivos en node_modules/, 0 en skills/, el .env real NO está.
+- Build exitoso: 'Compiled successfully in 12.9s'.
+- Commit ec667ea y push a GitHub.
+
+Stage Summary:
+- La página web YA NO tiene el botón de descarga de código. Quedó exactamente como
+  estaba antes de la funcionalidad del Task ID 6.
+- El ZIP del código fuente está disponible en /home/z/my-project/download/ para
+  entrega directa al usuario.
